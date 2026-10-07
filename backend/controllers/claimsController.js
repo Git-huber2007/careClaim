@@ -7,7 +7,8 @@ import { HttpError } from '../utils/http.js';
 const CLAIM_LIST_COLUMNS =
   'id, patient_id, policy_id, diagnosis_code, total_billed, status, approved_amount, created_at, policies(policy_number)';
 
-const money = (n) => `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (n) =>
+  Number(n ?? 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 });
 
 async function getOwnedClaim(claimId, userId) {
   const { data, error } = await supabaseAdmin

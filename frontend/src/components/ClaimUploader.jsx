@@ -158,7 +158,7 @@ export default function ClaimUploader() {
             rows={12}
             spellCheck={false}
             className={`input resize-y font-mono text-[13px] leading-relaxed ${errors.itemized_bill ? 'input-error' : ''}`}
-            placeholder={'[\n  { "item_name": "Room Charges (3 days)", "cost": 1800 },\n  { "item_name": "Appendectomy", "cost": 8500 }\n]\n\n— or —\n\nRoom Charges (3 days), 1800\nAppendectomy, 8500'}
+            placeholder={'[\n  { "item_name": "Room Charges (3 days)", "cost": 24000 },\n  { "item_name": "Laparoscopic Appendectomy", "cost": 85000 }\n]\n\n— or —\n\nRoom Charges (3 days), 24000\nLaparoscopic Appendectomy, 85000'}
             value={form.itemized_bill}
             onChange={set('itemized_bill')}
           />

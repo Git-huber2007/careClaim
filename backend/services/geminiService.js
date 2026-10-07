@@ -79,10 +79,11 @@ Excluded Treatments: ${JSON.stringify(policy.excluded_treatments)}
     copay    = eligible * copay_percentage / 100
     payable  = eligible - copay
     approved_amount = min(payable, max_coverage_limit), rounded to 2 decimals
+- All monetary amounts are in Indian Rupees (INR / ₹).
 - final_status: APPROVED if no items are denied and no cap applies; DENIED if approved_amount is 0; otherwise PARTIAL.
 
 ## CHAIN OF THOUGHT FORMAT
-Write 10-25 concise terminal-style lines. Start with ingestion/verification steps (e.g. "Extracting itemized bill: N line items detected", "Cross-referencing Policy ${policy.policy_number}..."), then one line per item ("Item 3 'X' ($Y): COVERED under 'Z'" or "Rejecting line item 4: Cosmetic surgery not covered"), then the math steps, then the final decision.`;
+Write 10-25 concise terminal-style lines. Start with ingestion/verification steps (e.g. "Extracting itemized bill: N line items detected", "Cross-referencing Policy ${policy.policy_number}..."), then one line per item ("Item 3 'X' (₹Y): COVERED under 'Z'" or "Rejecting line item 4: Cosmetic procedure not covered"), then the math steps, then the final decision.`;
 }
 
 const withTimeout = (promise, ms) => {

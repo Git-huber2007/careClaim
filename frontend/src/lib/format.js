@@ -1,11 +1,16 @@
 export const money = (n) =>
-  Number(n ?? 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  Number(n ?? 0).toLocaleString('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  });
 
 export const shortId = (id) => (id ? id.slice(0, 8).toUpperCase() : '—');
 
 export const dateTime = (iso) =>
   iso
-    ? new Date(iso).toLocaleString('en-US', {
+    ? new Date(iso).toLocaleString('en-IN', {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
@@ -15,7 +20,7 @@ export const dateTime = (iso) =>
 
 /**
  * Parse an itemized bill from either a JSON array or plain text lines.
- * Text formats accepted per line: "Item name, 1234.50" | "Item name - 1234" | "Item name: $1,234"
+ * Text formats accepted per line: "Item name, 1234.50" | "Item name - 1234" | "Item name: ₹1,234" | "Item name: Rs 1,234"
  */
 export function parseBill(input) {
   const text = String(input || '').trim();
@@ -42,7 +47,7 @@ export function parseBill(input) {
   const items = [];
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
   for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(/^(.*?)[\s]*[,:\-–|\t][\s]*\$?\s*([\d,]+(?:\.\d+)?)\s*$/);
+    const m = lines[i].match(/^(.*?)[\s]*[,:\-–|\t][\s]*(?:₹|Rs\.?|INR|\$)?\s*([\d,]+(?:\.\d+)?)\s*$/i);
     if (!m) return { items: [], error: `Line ${i + 1}: expected "Item name, cost"` };
     const cost = Number(m[2].replace(/,/g, ''));
     if (!m[1].trim() || !(cost > 0)) return { items: [], error: `Line ${i + 1}: invalid item or cost` };
