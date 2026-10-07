@@ -1,0 +1,279 @@
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router';
+import { fetchApi, extractBill } from '../lib/api';
+import { useAccount } from '../lib/account';
+import { toBillLine } from '../lib/claims';
+import { formatCurrency } from '../lib/format';
+import { Upload } from 'lucide-react';
+import { toast } from 'sonner';
+
+export function NewClaim() {
+  const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const profile = useAccount();
+  // A patient checks their own bill: the backend fixes the patient ID and only accepts their own policy.
+  const isPatient = profile.role === 'PATIENT';
+  const [patientId, setPatientId] = useState(isPatient ? profile.patient_id ?? '' : 'PAT-1001');
+  const [policyNumber, setPolicyNumber] = useState(isPatient ? '' : 'STAR-402-GOLD');
+  const [diagnosis, setDiagnosis] = useState('K35.80');
+  const [items, setItems] = useState([{ item_name: 'Laparoscopic Appendectomy', cost: 85000, quantity: 1 }]);
+  const [policies, setPolicies] = useState<any[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+
+  // The backend has no lookup-by-number route; it lists the policies this
+  // account may use (all of them for a hospital, their own for a patient).
+  useEffect(() => {
+    fetchApi('/api/policies')
+      .then(res => {
+        setPolicies(res.policies);
+        if (isPatient && res.policies.length) setPolicyNumber(res.policies[0].policy_number);
+      })
+      .catch(err => toast.error(err.message));
+  }, [isPatient]);
+
+  const policyData = policies.find(p => p.policy_number.toLowerCase() === policyNumber.trim().toLowerCase()) ?? null;
+
+  const billLines = items.map(toBillLine);
+  const totalBilled = Math.round(billLines.reduce((sum, line) => sum + line.cost, 0) * 100) / 100;
+
+  const handleFileUpload = async (file: File) => {
+    if (!file) return;
+    const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Please upload a PDF document or image (PNG, JPG, WebP).');
+      return;
+    }
+    setExtracting(true);
+    const toastId = toast.loading('Extracting bill lines with Gemini Vision...');
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const data = await extractBill(base64, file.type);
+      if (data.items?.length) {
+        setItems(data.items.map((it: any) => ({ item_name: it.item_name, cost: it.cost, quantity: 1 })));
+      }
+      if (data.diagnosis_code && !diagnosis) setDiagnosis(data.diagnosis_code);
+      if (!isPatient && data.patient_id) setPatientId(data.patient_id);
+      if (data.policy_number) {
+        const match = policies.find(p => p.policy_number.toLowerCase().includes(data.policy_number.toLowerCase()));
+        if (match) setPolicyNumber(match.policy_number);
+      }
+      toast.success(`Extracted ${data.items?.length || 0} items (${formatCurrency(data.total_billed)}) via Gemini Vision`, { id: toastId });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to extract bill items', { id: toastId });
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!policyData) {
+      toast.error('No policy found with that number');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      // The backend takes the policy's id (not its number) and { item_name, cost } bill lines.
+      const { claim } = await fetchApi('/api/claims', {
+        method: 'POST',
+        body: JSON.stringify({
+          patient_id: patientId.trim(),
+          policy_id: policyData.id,
+          diagnosis_code: diagnosis.trim(),
+          raw_bill_data: billLines,
+          total_billed: totalBilled
+        })
+      });
+      toast.success('Claim submitted successfully');
+      navigate(`/claims/${claim.id}`);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Scenarios use the mock policies seeded by supabase/schema.sql.
+  const loadScenario = (scenario: number) => {
+    if (scenario === 1) {
+      setPolicyNumber('HDFC-118-SILVER');
+      setPatientId('PAT-1002');
+      setDiagnosis('J18.9');
+      setItems([
+        { item_name: 'Room Charges (4 days)', cost: 28000, quantity: 1 },
+        { item_name: 'Pulmonology Consultation', cost: 6500, quantity: 1 },
+        { item_name: 'Chest X-Ray Digital', cost: 2800, quantity: 1 },
+        { item_name: 'IV Antibiotics & Nebulization', cost: 32000, quantity: 1 }
+      ]);
+    } else if (scenario === 2) {
+      setPolicyNumber('STAR-402-GOLD');
+      setPatientId('PAT-1001');
+      setDiagnosis('K35.80');
+      setItems([
+        { item_name: 'Laparoscopic Appendectomy', cost: 85000, quantity: 1 },
+        { item_name: 'Anesthesia', cost: 18000, quantity: 1 },
+        { item_name: 'Cosmetic Scar Revision Surgery', cost: 32000, quantity: 1 }
+      ]);
+    } else if (scenario === 3) {
+      setPolicyNumber('STAR-402-GOLD');
+      setPatientId('PAT-1001');
+      setDiagnosis('K35.80');
+      setItems([
+        { item_name: 'Laparoscopic Appendectomy', cost: 85000, quantity: 1 },
+        { item_name: 'Anesthesia', cost: 18000, quantity: 1 },
+        { item_name: 'Anesthesia', cost: 18000, quantity: 1 }, // duplicate
+        { item_name: 'Abdominal X-Ray', cost: 45000, quantity: 1 } // overcharge
+      ]);
+    }
+  };
+
+  return (
+    <div className="min-h-screen p-6 md:p-10 max-w-7xl mx-auto space-y-8">
+      <header className="flex justify-between items-end border-b border-rule pb-4">
+        <div>
+          <h1 className="text-3xl font-serif text-pine-deep">New Claim Intake</h1>
+        </div>
+        {!isPatient && (
+          <select
+            onChange={e => loadScenario(Number(e.target.value))}
+            className="bg-bone border border-rule rounded px-3 py-1.5 text-sm font-mono focus:outline-none"
+          >
+            <option value="0">Load Sample Scenario...</option>
+            <option value="1">1. Clean Approval</option>
+            <option value="2">2. Partial (Cosmetic)</option>
+            <option value="3">3. Fraud/Overcharge</option>
+          </select>
+        )}
+      </header>
+
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="md:col-span-2 space-y-6">
+          <div className="bg-paper p-6 rounded-lg border border-rule space-y-4">
+            <h2 className="font-mono text-sm uppercase tracking-wider text-pine-deep border-b border-rule pb-2">Patient Details</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-mono uppercase text-ink-soft mb-1">Patient ID</label>
+                <input required readOnly={isPatient} value={patientId} onChange={e => setPatientId(e.target.value)} className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-mono uppercase text-ink-soft mb-1">Policy Number</label>
+                <input required value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-mono uppercase text-ink-soft mb-1">Diagnosis Code</label>
+              <input required value={diagnosis} onChange={e => setDiagnosis(e.target.value)} className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm" />
+            </div>
+          </div>
+
+          {/* Document Ingestion Zone */}
+          <div className="bg-paper p-4 rounded-lg border border-rule space-y-2">
+            <div className="flex justify-between items-center flex-wrap gap-2">
+              <div>
+                <span className="font-mono text-xs uppercase tracking-wider text-pine-deep font-bold flex items-center gap-1.5">
+                  <Upload size={14} /> Scan Bill Document (PDF or Photo)
+                </span>
+                <p className="text-[11px] text-ink-soft font-mono mt-0.5">
+                  Gemini Vision automatically extracts line items, costs & diagnosis code.
+                </p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf,image/*"
+                className="hidden"
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFileUpload(f);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={extracting}
+                className="bg-bone hover:bg-rule/40 border border-rule text-pine-deep px-3 py-1.5 rounded text-xs font-mono transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <Upload size={13} /> {extracting ? 'Extracting…' : 'Upload Document'}
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-paper p-6 rounded-lg border border-rule space-y-4">
+            <div className="flex justify-between items-end border-b border-rule pb-2">
+              <h2 className="font-mono text-sm uppercase tracking-wider text-pine-deep">Itemized Bill</h2>
+              <div className="font-mono font-bold text-lg text-pine-deep">Total: {formatCurrency(totalBilled)}</div>
+            </div>
+            
+            <div className="space-y-2">
+              {items.map((item, idx) => (
+                <div key={idx} className="flex gap-2 items-center">
+                  <input 
+                    value={item.item_name} 
+                    onChange={e => { const newI = [...items]; newI[idx].item_name = e.target.value; setItems(newI); }}
+                    className="flex-1 bg-bone border border-rule rounded px-3 py-2 text-sm" placeholder="Item Name"
+                  />
+                  <input 
+                    type="number" value={item.cost}
+                    onChange={e => { const newI = [...items]; newI[idx].cost = Number(e.target.value); setItems(newI); }}
+                    className="w-32 bg-bone border border-rule rounded px-3 py-2 text-sm font-mono text-right" placeholder="Cost"
+                  />
+                  <input 
+                    type="number" value={item.quantity} min={1}
+                    onChange={e => { const newI = [...items]; newI[idx].quantity = Number(e.target.value); setItems(newI); }}
+                    className="w-16 bg-bone border border-rule rounded px-2 py-2 text-sm font-mono text-center" placeholder="Qty"
+                  />
+                  <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-vermilion px-2 hover:bg-vermilion/10 rounded">×</button>
+                </div>
+              ))}
+            </div>
+            <button 
+              type="button" 
+              onClick={() => setItems([...items, { item_name: '', cost: 0, quantity: 1 }])}
+              className="text-sm text-pine font-medium hover:underline"
+            >
+              + Add Line Item
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <button 
+            type="submit" 
+            disabled={submitting || items.length === 0}
+            className="w-full bg-pine hover:bg-pine-deep text-bone rounded px-4 py-3 font-medium transition-colors disabled:opacity-50 text-lg shadow-md"
+          >
+            {submitting ? 'Submitting...' : 'Submit Claim'}
+          </button>
+
+          {policyData ? (
+            <div className="bg-paper p-5 rounded-lg border-t-4 border-t-moss border border-rule shadow-sm">
+              <div className="text-xs font-mono uppercase tracking-wider text-moss mb-3">Policy Match Found</div>
+              <div className="font-serif text-xl text-pine-deep">{policyData.policy_number}</div>
+              <div className="text-sm text-ink-soft mb-4">Policy holder {policyData.patient_id}</div>
+              <div className="space-y-2 font-mono text-sm border-t border-rule pt-3">
+                <div className="flex justify-between">
+                  <span className="text-ink-soft">Coverage Limit</span>
+                  <span className="font-bold">{formatCurrency(policyData.max_coverage_limit)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-ink-soft">Copay</span>
+                  <span className="font-bold">{policyData.copay_percentage}%</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-bone p-5 rounded-lg border border-rule border-dashed text-center text-ink-soft text-sm">
+              Enter a valid policy number to preview coverage.
+            </div>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+}

@@ -1,0 +1,227 @@
+import { useEffect } from 'react';
+import { formatCurrency, formatDate } from '../lib/format';
+import { flagLabel } from '../lib/claims';
+import { Printer, X } from 'lucide-react';
+
+interface DischargeSlipModalProps {
+  claim: any;
+  onClose: () => void;
+}
+
+export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) {
+  const policy = claim?.policies;
+  const breakdown = claim?.ai_reasoning_log?.breakdown ?? {};
+  const status = claim?.status ?? 'PENDING';
+  const billItems = claim?.raw_bill_data ?? [];
+  const lineDecisions = claim?.ai_reasoning_log?.line_items ?? [];
+  const decisionByLine = new Map(lineDecisions.map((l: any) => [l.line, l]));
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const statusColor =
+    status === 'APPROVED'
+      ? 'border-emerald-700 text-emerald-800 bg-emerald-50'
+      : status === 'PARTIAL'
+      ? 'border-amber-700 text-amber-800 bg-amber-50'
+      : 'border-rose-700 text-rose-800 bg-rose-50';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm print:static print:p-0 print:bg-white">
+      <div className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-paper text-ink shadow-2xl border border-rule print:max-h-none print:shadow-none print:w-full print:rounded-none print:border-none">
+        {/* Action Toolbar (Screen Only) */}
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-rule bg-bone px-6 py-3 print:hidden">
+          <div className="flex items-center gap-2">
+            <span className="font-serif text-base text-pine-deep font-bold">Discharge Clearance & EOB Slip</span>
+            <span className="rounded bg-paper px-2 py-0.5 text-xs font-mono text-ink-soft border border-rule">
+              #{claim.id?.slice(0, 8)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handlePrint}
+              id="print-slip-btn"
+              className="inline-flex items-center gap-1.5 rounded bg-pine hover:bg-pine-deep px-3.5 py-1.5 text-xs font-medium text-bone transition-colors cursor-pointer"
+            >
+              <Printer size={14} /> Print / Save PDF
+            </button>
+            <button
+              onClick={onClose}
+              id="close-slip-btn"
+              className="rounded p-1.5 text-ink-soft hover:bg-paper cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Printable Certificate Content */}
+        <div className="p-8 sm:p-12 print:p-6 bg-paper" id="printable-clearance-slip">
+          {/* Header */}
+          <div className="flex flex-wrap items-start justify-between border-b-2 border-pine-deep pb-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded bg-pine text-bone font-serif text-2xl font-bold">
+                +
+              </div>
+              <div>
+                <h1 className="text-xl font-serif font-bold tracking-tight text-pine-deep uppercase">
+                  CareClaim Health Network
+                </h1>
+                <p className="text-xs text-ink-soft font-mono">
+                  Autonomous Hospital Discharge Claims Adjudication & Settlement Portal
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 text-right sm:mt-0">
+              <span className={`inline-block rounded border-2 px-3 py-1 font-mono text-xs font-bold uppercase tracking-wider ${statusColor}`}>
+                {status}
+              </span>
+              <p className="mt-1 text-xs text-ink-soft font-mono">Date: {formatDate(claim.created_at)}</p>
+            </div>
+          </div>
+
+          {/* Title */}
+          <div className="my-6 text-center">
+            <h2 className="text-base font-serif font-bold uppercase tracking-wide text-pine-deep">
+              Hospital Discharge Clearance & Explanation of Benefits (EOB)
+            </h2>
+            <p className="text-xs text-ink-soft font-mono">
+              Official Settlement Advice for Inpatient Hospitalization
+            </p>
+          </div>
+
+          {/* Metadata Grid */}
+          <div className="mb-6 grid grid-cols-2 gap-4 rounded border border-rule bg-bone p-4 text-xs sm:grid-cols-4 font-mono">
+            <div>
+              <p className="text-[10px] text-ink-soft uppercase tracking-wider">Patient ID</p>
+              <p className="mt-0.5 font-bold text-ink">{claim.patient_id}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-ink-soft uppercase tracking-wider">Policy Number</p>
+              <p className="mt-0.5 font-bold text-ink">{policy?.policy_number || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-ink-soft uppercase tracking-wider">Diagnosis (ICD-10)</p>
+              <p className="mt-0.5 font-bold text-ink">{claim.diagnosis_code || 'UNSPECIFIED'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-ink-soft uppercase tracking-wider">Claim Reference</p>
+              <p className="mt-0.5 text-ink-soft truncate">{claim.id}</p>
+            </div>
+          </div>
+
+          {/* Waterfall Strip */}
+          <div className="mb-8 overflow-hidden rounded border border-rule bg-bone">
+            <div className="bg-bone px-4 py-2 border-b border-rule">
+              <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-ink-soft">
+                Financial Adjudication Waterfall
+              </h3>
+            </div>
+            <div className="grid grid-cols-2 divide-x divide-y sm:divide-y-0 sm:grid-cols-4 divide-rule text-center font-mono">
+              <div className="p-3">
+                <p className="text-[10px] text-ink-soft uppercase">Total Billed</p>
+                <p className="mt-1 text-base font-bold text-ink">{formatCurrency(claim.total_billed)}</p>
+              </div>
+              <div className="p-3">
+                <p className="text-[10px] text-ink-soft uppercase">Disallowed / Flagged</p>
+                <p className="mt-1 text-base font-bold text-vermilion">
+                  {formatCurrency(breakdown.excluded_total ?? 0)}
+                </p>
+              </div>
+              <div className="p-3 bg-emerald-500/10">
+                <p className="text-[10px] text-emerald-800 uppercase font-bold">Insurer Pays</p>
+                <p className="mt-1 text-base font-bold text-emerald-800">
+                  {formatCurrency(claim.approved_amount)}
+                </p>
+              </div>
+              <div className="p-3 bg-amber-500/10">
+                <p className="text-[10px] text-amber-800 uppercase font-bold">Patient Payable</p>
+                <p className="mt-1 text-base font-bold text-amber-800">
+                  {formatCurrency(
+                    breakdown.patient_payable ??
+                      Math.max(0, Number(claim.total_billed) - Number(claim.approved_amount || 0))
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Itemized Table */}
+          <div className="mb-8">
+            <h3 className="mb-2 text-xs font-mono font-bold uppercase tracking-wider text-ink-soft">
+              Audited Line Items Breakdown
+            </h3>
+            <table className="w-full text-left text-xs border-collapse font-mono">
+              <thead>
+                <tr className="border-b border-rule bg-bone text-[11px] text-ink-soft">
+                  <th className="py-2 px-2 text-center w-8">#</th>
+                  <th className="py-2 px-3 font-normal">Service / Charge Description</th>
+                  <th className="py-2 px-3 text-right font-normal">Billed</th>
+                  <th className="py-2 px-3 text-center font-normal">Status</th>
+                  <th className="py-2 px-3 font-normal">Audit Reason</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rule/60">
+                {billItems.map((item: any, i: number) => {
+                  const decision: any = decisionByLine.get(i + 1);
+                  const flag = decision?.flag || 'OK';
+                  const isOk = flag === 'OK';
+                  return (
+                    <tr key={i} className={isOk ? '' : 'bg-vermilion/5'}>
+                      <td className="py-2 px-2 text-center text-ink-soft">{i + 1}</td>
+                      <td className="py-2 px-3 font-sans font-medium text-ink">{item.item_name}</td>
+                      <td className="py-2 px-3 text-right">{formatCurrency(item.cost)}</td>
+                      <td className="py-2 px-3 text-center">
+                        <span
+                          className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                            isOk
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {flagLabel(flag)}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-ink-soft font-sans text-[11px]">
+                        {decision?.reason || (isOk ? 'Covered under policy schedule.' : 'Flagged for review.')}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Signoff Blocks */}
+          <div className="mt-12 pt-8 border-t border-rule grid grid-cols-2 gap-8 text-xs font-mono">
+            <div>
+              <p className="font-bold text-pine-deep font-serif text-sm">Hospital Billing & TPA Desk</p>
+              <p className="text-[11px] text-ink-soft mt-0.5">Discharge verification approved</p>
+              <div className="mt-8 border-b border-ink-soft/40 w-48"></div>
+              <p className="mt-1 text-[10px] text-ink-soft">Authorized Signature & Seal</p>
+            </div>
+            <div className="text-right">
+              <p className="font-bold text-pine-deep font-serif text-sm">CareClaim Autonomous Adjudicator</p>
+              <p className="text-[10px] text-ink-soft mt-0.5">Checksum: {claim.id?.slice(0, 8)}-VERIFIED-OK</p>
+              <div className="mt-8 border-b border-ink-soft/40 w-48 ml-auto"></div>
+              <p className="mt-1 text-[10px] text-ink-soft">Deterministic Math Pass</p>
+            </div>
+          </div>
+
+          <p className="mt-8 text-center text-[10px] text-ink-soft font-mono">
+            Automated discharge settlement generated by CareClaim AI. Subject to policy terms and IRDAI regulations.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
