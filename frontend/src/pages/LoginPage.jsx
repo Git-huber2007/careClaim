@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 const FEATURES = [
   { icon: IconBolt, title: '< 15s adjudication', text: 'Replace the 6–8 hour discharge wait with autonomous approval.' },
   { icon: IconTerminal, title: 'Transparent reasoning', text: 'Every decision streamed step-by-step to the Agent Terminal.' },
-  { icon: IconShield, title: 'Fraud & overcharge checks', text: 'Exclusions, mismatched patients and anomalies flagged instantly.' },
+  { icon: IconShield, title: 'Bill checks for patients', text: 'Patients see duplicate, overpriced and unrelated charges flagged, and can dispute them.' },
 ];
 
 export default function LoginPage() {
@@ -53,7 +53,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="text-xs text-ink-400">© {new Date().getFullYear()} CareClaim AI · Prototype for hospital billing teams</p>
+        <p className="text-xs text-ink-400">© {new Date().getFullYear()} CareClaim AI · Prototype for hospital billing teams and patients</p>
       </section>
 
       <section className="relative flex items-center justify-center p-6">

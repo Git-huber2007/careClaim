@@ -18,6 +18,23 @@ export const SAMPLE_BILLS = [
     ],
   },
   {
+    label: 'Appendectomy Overbilling Check (Apollo Hospital)',
+    hint: 'Star Gold · Duplicate, overpriced and unbundled lines flagged',
+    category: 'Bill Audit',
+    patient_id: 'PAT-1001',
+    policy_id: '11111111-1111-4111-8111-111111111111',
+    diagnosis_code: 'K35.80',
+    items: [
+      { item_name: 'Room Charges (3 days)', cost: 24000 },
+      { item_name: 'Laparoscopic Appendectomy', cost: 85000 },
+      { item_name: 'Anesthesia', cost: 18000 },
+      { item_name: 'Anesthesia', cost: 18000 },
+      { item_name: 'Abdominal X-Ray', cost: 45000 },
+      { item_name: 'Surgical Gloves & Suture Kit', cost: 9500 },
+      { item_name: 'Pre-Op Blood Test Panel', cost: 3500 },
+    ],
+  },
+  {
     label: 'Pneumonia Inpatient Stay (Fortis)',
     hint: 'HDFC Silver · 100% clean approval (15% copay)',
     category: 'Pulmonology',

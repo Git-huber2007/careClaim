@@ -28,3 +28,40 @@ export async function requireAuth(req, _res, next) {
     next(err);
   }
 }
+
+/** Reads the caller's profile row; null until they finish account setup. */
+export async function loadProfile(userId) {
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .select('id, role, patient_id, created_at')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) {
+    // 42P01 / PGRST205: the profiles table is missing, i.e. the schema predates roles.
+    if (error.code === '42P01' || error.code === 'PGRST205') {
+      throw new HttpError(503, 'Database schema is out of date. Re-run supabase/schema.sql in the Supabase SQL Editor.');
+    }
+    throw new HttpError(500, `Database error: ${error.message}`);
+  }
+  return data;
+}
+
+/**
+ * Loads the caller's role into req.profile. Must run after requireAuth.
+ * The role comes ONLY from the profiles table — never from the body or the token.
+ */
+export async function requireProfile(req, _res, next) {
+  try {
+    const profile = await loadProfile(req.user.id);
+    if (!profile) throw new HttpError(403, 'Account setup is not complete. Choose hospital or patient first.');
+    req.profile = profile;
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Restricts a route to the given role(s). Must run after requireProfile. */
+export const requireRole = (...roles) => (req, _res, next) =>
+  next(roles.includes(req.profile.role) ? undefined : new HttpError(403, 'This action is not available for your account type.'));

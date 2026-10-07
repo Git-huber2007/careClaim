@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 import { money, parseBill } from '../lib/format';
 import { SAMPLE_BILLS } from '../lib/sampleBills';
@@ -9,7 +10,16 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export default function ClaimUploader() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ patient_id: '', policy_id: '', diagnosis_code: '', itemized_bill: '' });
+  const { profile } = useAuth();
+  // A patient checks their own bill: the patient ID and policy are theirs, not free choices.
+  const isPatient = profile?.role === 'PATIENT';
+  const samples = isPatient ? SAMPLE_BILLS.filter((s) => s.patient_id === profile.patient_id) : SAMPLE_BILLS;
+  const [form, setForm] = useState({
+    patient_id: isPatient ? profile.patient_id : '',
+    policy_id: '',
+    diagnosis_code: '',
+    itemized_bill: '',
+  });
   const [policies, setPolicies] = useState([]);
   const [policiesError, setPoliciesError] = useState('');
   const [errors, setErrors] = useState({});
@@ -17,8 +27,15 @@ export default function ClaimUploader() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    api.listPolicies().then(setPolicies).catch((e) => setPoliciesError(e.message));
-  }, []);
+    api
+      .listPolicies()
+      .then((list) => {
+        setPolicies(list);
+        // The API returns a patient only the policies they hold.
+        if (isPatient && list.length === 1) setForm((f) => ({ ...f, policy_id: f.policy_id || list[0].id }));
+      })
+      .catch((e) => setPoliciesError(e.message));
+  }, [isPatient]);
 
   const parsed = useMemo(() => parseBill(form.itemized_bill), [form.itemized_bill]);
   const total = useMemo(() => Math.round(parsed.items.reduce((s, i) => s + i.cost, 0) * 100) / 100, [parsed]);
@@ -92,13 +109,15 @@ export default function ClaimUploader() {
     <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
       <form onSubmit={handleSubmit} className="glass space-y-6 p-6 md:p-8" noValidate id="claim-form">
         {/* Samples */}
+        {samples.length > 0 && (
+        <>
         <div>
           <div className="mb-2.5 flex items-center justify-between">
-            <p className="label !mb-0 flex items-center gap-1.5"><IconSparkle className="h-3.5 w-3.5" /> Quick-load demo scenarios ({SAMPLE_BILLS.length})</p>
+            <p className="label !mb-0 flex items-center gap-1.5"><IconSparkle className="h-3.5 w-3.5" /> Quick-load demo scenarios ({samples.length})</p>
             <span className="text-[11px] text-ink-400">Click any to auto-fill</span>
           </div>
           <div className="grid max-h-80 gap-2.5 overflow-y-auto pr-1 sm:grid-cols-2">
-            {SAMPLE_BILLS.map((s, i) => (
+            {samples.map((s, i) => (
               <button
                 key={s.label}
                 id={`sample-${i}`}
@@ -117,6 +136,8 @@ export default function ClaimUploader() {
         </div>
 
         <div className="h-px bg-white/5" />
+        </>
+        )}
 
         <div className="grid gap-5 md:grid-cols-2">
           <div>
@@ -137,7 +158,7 @@ export default function ClaimUploader() {
 
           <div>
             <label htmlFor="patient_id" className="label">Patient ID *</label>
-            <input id="patient_id" className={`input ${errors.patient_id ? 'input-error' : ''}`} placeholder="PAT-1001" value={form.patient_id} onChange={set('patient_id')} />
+            <input id="patient_id" className={`input ${errors.patient_id ? 'input-error' : ''}`} placeholder="PAT-1001" value={form.patient_id} onChange={set('patient_id')} readOnly={isPatient} />
             {errors.patient_id && <p className="mt-1.5 text-xs text-rose-300">{errors.patient_id}</p>}
           </div>
 
@@ -170,7 +191,7 @@ export default function ClaimUploader() {
         <div className="flex justify-end">
           <button id="submit-claim" type="submit" className="btn-primary px-6 py-3" disabled={submitting}>
             {submitting ? <Spinner /> : <IconBolt className="h-4 w-4" />}
-            Submit claim to agent
+            {isPatient ? 'Check my bill' : 'Submit claim to agent'}
           </button>
         </div>
       </form>

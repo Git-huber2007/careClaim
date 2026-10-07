@@ -36,6 +36,11 @@ async function request(path, { method = 'GET', body } = {}) {
 }
 
 export const api = {
+  getMe: () => request('/api/me'),
+  createProfile: (body) => request('/api/me/profile', { method: 'POST', body }).then((r) => r.profile),
+  listDisputes: () => request('/api/disputes').then((r) => r.disputes),
+  createDispute: (claimId, body) => request(`/api/claims/${claimId}/disputes`, { method: 'POST', body }).then((r) => r.dispute),
+  respondToDispute: (id, body) => request(`/api/disputes/${id}/respond`, { method: 'POST', body }).then((r) => r.dispute),
   listClaims: () => request('/api/claims').then((r) => r.claims),
   getClaim: (id) => request(`/api/claims/${id}`).then((r) => r.claim),
   createClaim: (body) => request('/api/claims', { method: 'POST', body }).then((r) => r.claim),

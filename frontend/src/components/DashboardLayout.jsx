@@ -1,15 +1,25 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { IconGrid, IconLogo, IconLogout, IconPlus, IconShield } from './Icons';
+import { IconFlag, IconGrid, IconLogo, IconLogout, IconPlus, IconShield } from './Icons';
 
-const NAV = [
-  { to: '/dashboard', label: 'Claims Queue', icon: IconGrid, id: 'nav-dashboard' },
-  { to: '/claims/new', label: 'New Claim', icon: IconPlus, id: 'nav-new-claim' },
-];
+const NAV = {
+  HOSPITAL: [
+    { to: '/dashboard', label: 'Claims Queue', icon: IconGrid, id: 'nav-dashboard' },
+    { to: '/claims/new', label: 'New Claim', icon: IconPlus, id: 'nav-new-claim' },
+    { to: '/disputes', label: 'Disputes', icon: IconFlag, id: 'nav-disputes' },
+  ],
+  PATIENT: [
+    { to: '/dashboard', label: 'My Bills', icon: IconGrid, id: 'nav-dashboard' },
+    { to: '/claims/new', label: 'Check a Bill', icon: IconPlus, id: 'nav-new-claim' },
+    { to: '/disputes', label: 'My Disputes', icon: IconFlag, id: 'nav-disputes' },
+  ],
+};
 
 export default function DashboardLayout() {
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const isPatient = profile?.role === 'PATIENT';
+  const nav = NAV[profile?.role] ?? NAV.HOSPITAL;
 
   async function handleSignOut() {
     await signOut();
@@ -24,12 +34,12 @@ export default function DashboardLayout() {
           <IconLogo />
           <div>
             <p className="text-[15px] font-bold leading-tight text-white">CareClaim <span className="text-gradient">AI</span></p>
-            <p className="text-[11px] font-medium uppercase tracking-widest text-ink-400">Adjudication Agent</p>
+            <p className="text-[11px] font-medium uppercase tracking-widest text-ink-400">{isPatient ? 'Patient Bill Check' : 'Adjudication Agent'}</p>
           </div>
         </div>
 
         <nav className="mt-2 flex-1 space-y-1 px-3">
-          {NAV.map(({ to, label, icon: Icon, id }) => (
+          {nav.map(({ to, label, icon: Icon, id }) => (
             <NavLink
               key={to}
               to={to}
@@ -51,7 +61,7 @@ export default function DashboardLayout() {
 
         <div className="m-3 rounded-xl border border-white/5 bg-ink-950/50 p-3">
           <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-brand-300">
-            <IconShield className="h-3.5 w-3.5" /> Secure session
+            <IconShield className="h-3.5 w-3.5" /> {isPatient ? `Patient · ${profile.patient_id}` : 'Hospital account'}
           </div>
           <p className="mt-1.5 truncate text-sm text-ink-200" title={user?.email}>{user?.email}</p>
           <button id="sign-out" onClick={handleSignOut} className="btn-ghost mt-3 w-full py-2 text-xs">
@@ -67,8 +77,8 @@ export default function DashboardLayout() {
           <span className="font-bold text-white">CareClaim AI</span>
         </div>
         <div className="flex gap-1">
-          {NAV.map(({ to, icon: Icon, id }) => (
-            <NavLink key={to} to={to} id={`${id}-m`} end className={({ isActive }) => `rounded-lg p-2 ${isActive ? 'bg-white/10 text-white' : 'text-ink-300'}`}>
+          {nav.map(({ to, label, icon: Icon, id }) => (
+            <NavLink key={to} to={to} id={`${id}-m`} end aria-label={label} className={({ isActive }) => `rounded-lg p-2 ${isActive ? 'bg-white/10 text-white' : 'text-ink-300'}`}>
               <Icon />
             </NavLink>
           ))}

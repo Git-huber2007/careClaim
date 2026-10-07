@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { config, missingEnv } from './config.js';
-import { claimsRouter, policiesRouter } from './routes/claims.js';
+import { claimsRouter, disputesRouter, meRouter, policiesRouter, statsRouter } from './routes/claims.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -29,8 +29,11 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', model: config.geminiModel, configured: missingEnv.length === 0, missing: missingEnv });
 });
 
+app.use('/api/me', meRouter);
 app.use('/api/claims', claimsRouter);
+app.use('/api/disputes', disputesRouter);
 app.use('/api/policies', policiesRouter);
+app.use('/api/stats', statsRouter);
 
 app.use(notFound);
 app.use(errorHandler);

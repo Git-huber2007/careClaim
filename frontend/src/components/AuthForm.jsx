@@ -64,9 +64,9 @@ export default function AuthForm() {
       </div>
 
       <h2 className="text-xl font-bold text-white">
-        {mode === 'signin' ? 'Hospital staff portal' : 'Register staff account'}
+        {mode === 'signin' ? 'Sign in to CareClaim' : 'Create your account'}
       </h2>
-      <p className="mt-1 text-sm text-ink-400">Secured by Supabase Auth · JWT-verified API</p>
+      <p className="mt-1 text-sm text-ink-400">For hospital billing staff and patients · Secured by Supabase Auth</p>
 
       {!supabaseConfigured && (
         <div className="mt-5 flex gap-2.5 rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-xs text-amber-200">
@@ -77,14 +77,14 @@ export default function AuthForm() {
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
         <div>
-          <label htmlFor="auth-email" className="label">Work email</label>
+          <label htmlFor="auth-email" className="label">Email</label>
           <input
             id="auth-email"
             type="email"
             required
             autoComplete="email"
             className="input"
-            placeholder="admin@stmarys-hospital.org"
+            placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />

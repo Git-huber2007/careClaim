@@ -1,75 +1,117 @@
 /**
  * Deterministic adjudication math.
  *
- * Gemini decides WHICH items are denied (the reasoning). This module then
+ * Gemini decides the FLAG on each bill line (the reasoning). This module then
  * recomputes the payout from those decisions so the final number is always
  * arithmetically correct and auditable:
  *
- *   eligible   = total_billed - excluded_total
+ *   eligible   = total_billed - excluded_total   (every line whose flag is not OK)
  *   copay      = eligible * copay_percentage / 100
  *   payable    = eligible - copay
  *   approved   = min(payable, max_coverage_limit)
  */
 
-const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
-const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+/** Every bill line gets exactly one of these. */
+export const FLAGS = ['OK', 'NOT_COVERED', 'DUPLICATE', 'OVERPRICED', 'UNBUNDLED', 'UNRELATED'];
 
 /**
- * Map AI denied items back to concrete bill lines (handles duplicates by
- * consuming each bill line at most once).
+ * Flags that suggest a billing problem. NOT_COVERED is deliberately absent:
+ * a charge the policy does not pay for is not a wrong charge.
  */
-export function matchDeniedItems(billItems, deniedItems) {
-  const used = new Set();
-  const matched = [];
+export const SUSPICIOUS_FLAGS = ['DUPLICATE', 'OVERPRICED', 'UNBUNDLED', 'UNRELATED'];
+
+const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+const namesMatch = (a, b) => Boolean(a && b) && (a === b || a.includes(b) || b.includes(a));
+
+/**
+ * Map the agent's per-line decisions back to concrete bill lines (each bill
+ * line is consumed at most once). A bill line the agent skipped stays OK.
+ */
+export function resolveLineItems(billItems, aiLineItems) {
+  const decisions = new Array(billItems.length).fill(null);
   const unmatched = [];
 
-  for (const denied of deniedItems) {
-    const target = norm(denied.item_name);
-    // An empty name would substring-match every bill line below.
-    let idx = target ? billItems.findIndex((b, i) => !used.has(i) && norm(b.item_name) === target) : -1;
-    if (idx === -1 && target) {
-      idx = billItems.findIndex(
-        (b, i) => !used.has(i) && (norm(b.item_name).includes(target) || target.includes(norm(b.item_name)))
-      );
-    }
+  for (const ai of aiLineItems) {
+    const target = norm(ai.item_name);
+    const byNumber = Number.isInteger(ai.line) && ai.line >= 1 && ai.line <= billItems.length ? ai.line - 1 : -1;
+
+    let idx = -1;
+    // The agent's line number is trusted when the name agrees with it…
+    if (byNumber !== -1 && !decisions[byNumber] && namesMatch(norm(billItems[byNumber].item_name), target)) idx = byNumber;
+    // …otherwise the name wins (exact, then partial)…
+    if (idx === -1 && target) idx = billItems.findIndex((b, i) => !decisions[i] && norm(b.item_name) === target);
+    if (idx === -1 && target) idx = billItems.findIndex((b, i) => !decisions[i] && namesMatch(norm(b.item_name), target));
+    // …and the bare line number is the last resort.
+    if (idx === -1 && byNumber !== -1 && !decisions[byNumber]) idx = byNumber;
+
     if (idx === -1) {
-      unmatched.push(denied);
+      if (ai.flag !== 'OK') unmatched.push(ai);
       continue;
     }
-    used.add(idx);
-    matched.push({
-      line: idx + 1,
-      item_name: billItems[idx].item_name,
-      cost: round2(billItems[idx].cost),
-      reason: denied.reason,
-    });
+    decisions[idx] = ai;
   }
 
-  return { matched, unmatched };
+  const missing = decisions.filter((d) => !d).length;
+  const lines = billItems.map((b, i) => {
+    const d = decisions[i];
+    const flag = d && FLAGS.includes(d.flag) ? d.flag : 'OK';
+    return {
+      line: i + 1,
+      item_name: b.item_name,
+      cost: round2(b.cost),
+      flag,
+      reason: d?.reason || (flag === 'OK' ? 'Covered by the policy and fairly charged.' : 'Flagged by the agent.'),
+      flagged_by: flag === 'OK' ? null : 'AGENT',
+    };
+  });
+
+  return { lines, unmatched, missing };
 }
 
-export function computeAdjudication({ billItems, totalBilled, policy, deniedItems, patientId }) {
-  let { matched, unmatched } = matchDeniedItems(billItems, deniedItems);
+/**
+ * A second line with the same name AND the same amount is a provable repeat,
+ * so it is flagged here no matter what the agent decided.
+ */
+function flagExactDuplicates(lines) {
+  const firstSeen = new Map();
+  let caught = 0;
+  for (const l of lines) {
+    const key = `${norm(l.item_name)}|${l.cost}`;
+    if (!firstSeen.has(key)) {
+      firstSeen.set(key, l.line);
+      continue;
+    }
+    if (l.flag !== 'OK') continue;
+    l.flag = 'DUPLICATE';
+    l.reason = `Same item and same amount as line ${firstSeen.get(key)}; it appears to be billed twice.`;
+    l.flagged_by = 'VERIFIER';
+    caught += 1;
+  }
+  return caught;
+}
+
+export function computeAdjudication({ billItems, totalBilled, policy, lineItems, patientId }) {
+  const { lines, unmatched, missing } = resolveLineItems(billItems, lineItems);
+  const duplicatesCaught = flagExactDuplicates(lines);
 
   // A patient / policy-holder mismatch is a hard rule, not a judgement call:
-  // deny every line no matter how the agent worded its denied_items.
+  // deny every line no matter how the agent flagged it.
   const patientMismatch = patientId !== undefined && norm(patientId) !== norm(policy.patient_id);
   if (patientMismatch) {
-    const byLine = new Map(matched.map((m) => [m.line, m]));
-    matched = billItems.map(
-      (b, i) =>
-        byLine.get(i + 1) ?? {
-          line: i + 1,
-          item_name: b.item_name,
-          cost: round2(b.cost),
-          reason: 'Patient ID does not match the policy holder (possible fraud).',
-        }
-    );
-    unmatched = [];
+    for (const l of lines) {
+      if (l.flag !== 'OK') continue;
+      l.flag = 'NOT_COVERED';
+      l.reason = 'The patient ID on this claim does not match the policy holder, so the policy does not pay for it.';
+      l.flagged_by = 'VERIFIER';
+    }
   }
 
+  const denied = lines.filter((l) => l.flag !== 'OK');
+  const sumOf = (items) => round2(items.reduce((s, l) => s + l.cost, 0));
+
   const total = round2(totalBilled);
-  const excludedTotal = round2(matched.reduce((s, m) => s + m.cost, 0));
+  const excludedTotal = sumOf(denied);
   const eligible = round2(Math.max(0, total - excludedTotal));
   const copayPct = Number(policy.copay_percentage);
   const copayAmount = round2((eligible * copayPct) / 100);
@@ -81,7 +123,7 @@ export function computeAdjudication({ billItems, totalBilled, policy, deniedItem
 
   let status;
   if (approved <= 0) status = 'DENIED';
-  else if (matched.length === 0 && !capped) status = 'APPROVED';
+  else if (denied.length === 0 && !capped) status = 'APPROVED';
   else status = 'PARTIAL';
 
   return {
@@ -90,6 +132,9 @@ export function computeAdjudication({ billItems, totalBilled, policy, deniedItem
     breakdown: {
       total_billed: total,
       excluded_total: excludedTotal,
+      // excluded_total split by why: questionable charges vs. plain non-coverage
+      flagged_total: sumOf(denied.filter((l) => SUSPICIOUS_FLAGS.includes(l.flag))),
+      not_covered_total: sumOf(denied.filter((l) => l.flag === 'NOT_COVERED')),
       eligible_amount: eligible,
       copay_percentage: copayPct,
       copay_amount: copayAmount,
@@ -98,9 +143,13 @@ export function computeAdjudication({ billItems, totalBilled, policy, deniedItem
       cap_applied: capped,
       cap_reduction: capReduction,
       approved_amount: approved,
+      patient_payable: round2(Math.max(0, total - approved)),
     },
-    denied_items: matched,
-    unmatched_denied_items: unmatched,
+    line_items: lines,
+    denied_items: denied,
+    unmatched_line_items: unmatched,
+    missing_decisions: missing,
+    duplicates_caught: duplicatesCaught,
     patient_mismatch: patientMismatch,
   };
 }

@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { config, missingEnv } from '../config.js';
 import { adjudicationResultSchema } from '../validation/schemas.js';
+import { FLAGS } from './adjudicationMath.js';
 import { HttpError } from '../utils/http.js';
 
 const ai = missingEnv.includes('GEMINI_API_KEY') ? null : new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -9,9 +10,10 @@ export const SYSTEM_PROMPT = `You are CareClaim AI, an autonomous medical insura
 Your job is to analyze hospital discharge bills against the patient's insurance policy constraints.
 You must:
 1. Cross-reference every billed item against the 'covered_treatments' and 'excluded_treatments'.
-2. Identify fraudulent or explicitly excluded charges and deny them.
+2. Give every billed item exactly one flag, separating charges the policy simply does not cover from charges that look wrong (duplicated, overpriced, unbundled, or unrelated to the diagnosis).
 3. Calculate the final approved payout based on the policy's max coverage limit and copay percentage.
 4. Provide a step-by-step 'chain_of_thought' log detailing exactly how you arrived at the decision, which will be streamed to a terminal UI.
+Your flags are read by the hospital and by the patient. A flag means "worth reviewing", never proof of wrongdoing: describe what you see in the bill and do not accuse anyone of fraud over a single line item.
 You must strictly return data in the provided JSON schema.`;
 
 /** Spec output schema, expressed in the SDK's schema format. */
@@ -23,6 +25,20 @@ const RESPONSE_SCHEMA = {
       items: { type: Type.STRING },
       description: "Step-by-step internal reasoning (e.g., 'Analyzing item 1...', 'Item 2 is excluded...')",
     },
+    line_items: {
+      type: Type.ARRAY,
+      description: 'One entry for EVERY line of the itemized bill, in bill order',
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          line: { type: Type.INTEGER, description: 'The line number as shown in the itemized bill (1-based)' },
+          item_name: { type: Type.STRING, description: 'Copied exactly from the bill' },
+          flag: { type: Type.STRING, enum: FLAGS },
+          reason: { type: Type.STRING, description: 'One plain-language sentence a patient can understand' },
+        },
+        required: ['line', 'item_name', 'flag', 'reason'],
+      },
+    },
     final_status: {
       type: Type.STRING,
       enum: ['APPROVED', 'PARTIAL', 'DENIED'],
@@ -31,26 +47,21 @@ const RESPONSE_SCHEMA = {
       type: Type.NUMBER,
       description: 'Final calculated payout after copay and exclusions',
     },
-    denied_items: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          item_name: { type: Type.STRING },
-          reason: { type: Type.STRING },
-        },
-        required: ['item_name', 'reason'],
-      },
-    },
   },
-  required: ['chain_of_thought', 'final_status', 'approved_amount', 'denied_items'],
-  propertyOrdering: ['chain_of_thought', 'final_status', 'approved_amount', 'denied_items'],
+  required: ['chain_of_thought', 'line_items', 'final_status', 'approved_amount'],
+  propertyOrdering: ['chain_of_thought', 'line_items', 'final_status', 'approved_amount'],
 };
 
-function buildUserPrompt(claim, policy) {
+function buildUserPrompt(claim, policy, referencePrices) {
   const items = claim.raw_bill_data
     .map((it, i) => `  ${i + 1}. "${it.item_name}" — ${Number(it.cost).toFixed(2)}`)
     .join('\n');
+
+  const prices = referencePrices.length
+    ? referencePrices
+        .map((p) => `  - ${p.item_name}: up to ${Number(p.typical_max_price).toFixed(2)} ${p.unit}`)
+        .join('\n')
+    : '  (none on file)';
 
   return `## CLAIM UNDER REVIEW
 Claim ID: ${claim.id}
@@ -69,21 +80,33 @@ Copay Percentage: ${Number(policy.copay_percentage)}%
 Covered Treatments: ${JSON.stringify(policy.covered_treatments)}
 Excluded Treatments: ${JSON.stringify(policy.excluded_treatments)}
 
+## REFERENCE PRICES (typical maximum, INR)
+${prices}
+
+## LINE ITEM FLAGS
+Return one line_items entry for EVERY line of the itemized bill, using the bill's line number and copying item_name EXACTLY as written. Choose exactly one flag per line:
+- OK: covered by the policy and fairly charged.
+- NOT_COVERED: a genuine charge that the policy does not pay for, because it matches an excluded treatment or is not reasonably covered by any covered treatment. This is not a billing error.
+- DUPLICATE: the same service is billed more than once, including the same procedure under two different names. Flag the repeat, not the first occurrence.
+- OVERPRICED: the charge is more than 1.5x the reference price for that service (multiply per-day prices by the number of days stated in the item). With no matching reference price, use this only for a charge that is grossly above normal rates.
+- UNBUNDLED: a component that is normally included in a procedure or package already on this bill, charged separately.
+- UNRELATED: a service with no clinical connection to the diagnosis code.
+When a line both falls outside the policy and looks wrong as a charge, use the flag for what is wrong with the charge.
+
 ## ADJUDICATION RULES
-- If the claim's Patient ID does not match the Policy Holder Patient ID, flag it as potential fraud and DENY every item.
+- If the claim's Patient ID does not match the Policy Holder Patient ID, flag every line NOT_COVERED with the mismatch as the reason.
 - Evaluate EVERY line item individually. Map it semantically to the closest covered or excluded treatment category.
-- Deny an item if it matches an excluded treatment, is not reasonably covered by any covered treatment, is clinically unrelated to the diagnosis code, or appears duplicated / grossly overpriced (possible fraud or out-of-network overcharge).
-- In denied_items, item_name MUST be copied EXACTLY as written in the bill. If an item appears twice and both are denied, list it twice.
+- Every line whose flag is not OK is denied from the payout.
 - Payout math, in this exact order:
-    eligible = total_billed - sum(denied item costs)
+    eligible = total_billed - sum(costs of lines whose flag is not OK)
     copay    = eligible * copay_percentage / 100
     payable  = eligible - copay
     approved_amount = min(payable, max_coverage_limit), rounded to 2 decimals
 - All monetary amounts are in Indian Rupees (INR / ₹).
-- final_status: APPROVED if no items are denied and no cap applies; DENIED if approved_amount is 0; otherwise PARTIAL.
+- final_status: APPROVED if every line is OK and no cap applies; DENIED if approved_amount is 0; otherwise PARTIAL.
 
 ## CHAIN OF THOUGHT FORMAT
-Write 10-25 concise terminal-style lines. Start with ingestion/verification steps (e.g. "Extracting itemized bill: N line items detected", "Cross-referencing Policy ${policy.policy_number}..."), then one line per item ("Item 3 'X' (₹Y): COVERED under 'Z'" or "Rejecting line item 4: Cosmetic procedure not covered"), then the math steps, then the final decision.`;
+Write 10-25 concise terminal-style lines. Start with ingestion/verification steps (e.g. "Extracting itemized bill: N line items detected", "Cross-referencing Policy ${policy.policy_number}..."), then one line per item ("Item 3 'X' (₹Y): COVERED under 'Z'" or "Flagging line item 4 as NOT_COVERED: cosmetic procedure excluded"), then the math steps, then the final decision.`;
 }
 
 const withTimeout = (promise, ms) => {
@@ -107,10 +130,10 @@ function describeError(err) {
 /**
  * Runs the Gemini adjudication agent. Retries once on transient / malformed output.
  */
-export async function runAdjudicationAgent(claim, policy) {
+export async function runAdjudicationAgent(claim, policy, referencePrices = []) {
   if (!ai) throw new HttpError(503, 'GEMINI_API_KEY is not configured on the server.');
 
-  const contents = buildUserPrompt(claim, policy);
+  const contents = buildUserPrompt(claim, policy, referencePrices);
   let lastError;
 
   for (let attempt = 1; attempt <= 2; attempt++) {

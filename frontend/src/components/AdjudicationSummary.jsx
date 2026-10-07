@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import StatusBadge from './StatusBadge';
+import { flagMeta } from '../lib/flags';
 import { money } from '../lib/format';
 import { IconAlert, IconCheck, IconShield, IconX } from './Icons';
 
@@ -113,8 +114,9 @@ export default function AdjudicationSummary({ claim }) {
             {log.denied_items.map((d, i) => (
               <li key={i} className="rounded-xl border border-rose-400/15 bg-rose-400/[0.04] p-3">
                 <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="flex items-center gap-2 font-medium text-rose-200">
+                  <span className="flex flex-wrap items-center gap-2 font-medium text-rose-200">
                     <IconX className="h-3.5 w-3.5" /> {d.item_name}
+                    {d.flag && <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${flagMeta(d.flag).chip}`}>{flagMeta(d.flag).label}</span>}
                   </span>
                   <span className="tabular-nums text-rose-300">−{money(d.cost)}</span>
                 </div>

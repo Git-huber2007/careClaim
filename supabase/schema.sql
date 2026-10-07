@@ -1,6 +1,7 @@
 -- =========================================================
 -- CareClaim AI :: Schema, RLS, and Mock Policy Seed
--- Run in the Supabase SQL Editor. Safe to re-run.
+-- Run in the Supabase SQL Editor. Safe to re-run; re-running also upgrades
+-- a database created by an earlier version of this file.
 -- =========================================================
 
 -- Policies Table (Mock Insurance Data)
@@ -15,10 +16,28 @@ CREATE TABLE IF NOT EXISTS policies (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Profiles Table: one row per login, fixing the account's role.
+-- A PATIENT profile is linked to the patient_id on their policy.
+CREATE TABLE IF NOT EXISTS profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL, -- HOSPITAL, PATIENT
+    patient_id VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT profiles_role_check CHECK (role IN ('HOSPITAL', 'PATIENT')),
+    CONSTRAINT profiles_patient_link_check CHECK ((role = 'PATIENT') = (patient_id IS NOT NULL))
+);
+
+-- A patient ID can be claimed by one account only.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_patient_id ON profiles(patient_id) WHERE patient_id IS NOT NULL;
+
 -- Claims Table
+-- source = HOSPITAL: filed by hospital staff (hospital_user_id).
+-- source = PATIENT:  a bill the patient checks themselves (patient_user_id).
 CREATE TABLE IF NOT EXISTS claims (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    hospital_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    hospital_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    patient_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    source VARCHAR(20) NOT NULL DEFAULT 'HOSPITAL',
     policy_id UUID NOT NULL REFERENCES policies(id),
     patient_id VARCHAR(255) NOT NULL,
     diagnosis_code VARCHAR(100),
@@ -31,36 +50,80 @@ CREATE TABLE IF NOT EXISTS claims (
     CONSTRAINT claims_status_check CHECK (status IN ('PENDING', 'APPROVED', 'PARTIAL', 'DENIED'))
 );
 
+-- Upgrade a claims table created by an earlier version of this file.
+ALTER TABLE claims ADD COLUMN IF NOT EXISTS patient_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE claims ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'HOSPITAL';
+ALTER TABLE claims ALTER COLUMN hospital_user_id DROP NOT NULL;
+
+ALTER TABLE claims DROP CONSTRAINT IF EXISTS claims_source_check;
+ALTER TABLE claims ADD CONSTRAINT claims_source_check CHECK (source IN ('HOSPITAL', 'PATIENT'));
+ALTER TABLE claims DROP CONSTRAINT IF EXISTS claims_owner_check;
+ALTER TABLE claims ADD CONSTRAINT claims_owner_check CHECK (
+    (source = 'HOSPITAL' AND hospital_user_id IS NOT NULL) OR
+    (source = 'PATIENT' AND patient_user_id IS NOT NULL)
+);
+
+-- Accounts that already filed claims were hospital staff.
+INSERT INTO profiles (id, role)
+SELECT DISTINCT hospital_user_id, 'HOSPITAL' FROM claims WHERE hospital_user_id IS NOT NULL
+ON CONFLICT (id) DO NOTHING;
+
+-- Disputes Table: a patient questions one bill line; the hospital responds.
+CREATE TABLE IF NOT EXISTS disputes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    claim_id UUID NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+    patient_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    line_number INTEGER NOT NULL,
+    item_name TEXT NOT NULL,
+    cost DECIMAL(10, 2) NOT NULL,
+    flag VARCHAR(30), -- the flag on the line when the dispute was raised
+    patient_note TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'OPEN', -- OPEN, ACCEPTED, REJECTED
+    hospital_response TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    responded_at TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT disputes_status_check CHECK (status IN ('OPEN', 'ACCEPTED', 'REJECTED')),
+    CONSTRAINT disputes_claim_line_unique UNIQUE (claim_id, line_number)
+);
+
+-- Reference Prices Table: what the agent compares a charge against before
+-- flagging it as overpriced.
+CREATE TABLE IF NOT EXISTS reference_prices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_name VARCHAR(255) UNIQUE NOT NULL,
+    typical_max_price DECIMAL(10, 2) NOT NULL,
+    unit VARCHAR(50) NOT NULL DEFAULT 'per item',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_claims_hospital_user_id ON claims(hospital_user_id);
+CREATE INDEX IF NOT EXISTS idx_claims_patient_id ON claims(patient_id);
 CREATE INDEX IF NOT EXISTS idx_claims_created_at ON claims(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_policies_patient_id ON policies(patient_id);
+CREATE INDEX IF NOT EXISTS idx_disputes_claim_id ON disputes(claim_id);
+CREATE INDEX IF NOT EXISTS idx_disputes_patient_user_id ON disputes(patient_user_id);
 
 -- Data API grants. Supabase no longer grants these automatically on new
 -- tables, and without them even the backend's service-role client gets
 -- "permission denied for table ...".
-GRANT SELECT, INSERT, UPDATE, DELETE ON claims, policies TO service_role;
-GRANT SELECT, INSERT, UPDATE ON claims TO authenticated;
-GRANT SELECT ON policies TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON claims, policies, profiles, disputes, reference_prices TO service_role;
 
--- Row Level Security
+-- All reads and writes go through the backend, which checks the caller's role
+-- and scopes every query. Logged-in users get no direct table access: with it,
+-- a user could set their own claim to APPROVED or read another patient's policy.
+REVOKE ALL ON claims, policies, profiles, disputes, reference_prices FROM authenticated, anon;
+
+-- Row Level Security (no policies = no access for anyone but the service role)
 ALTER TABLE claims ENABLE ROW LEVEL SECURITY;
 ALTER TABLE policies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE disputes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reference_prices ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view their own claims" ON claims;
-CREATE POLICY "Users can view their own claims" ON claims
-    FOR SELECT TO authenticated USING (auth.uid() = hospital_user_id);
-
 DROP POLICY IF EXISTS "Users can insert their own claims" ON claims;
-CREATE POLICY "Users can insert their own claims" ON claims
-    FOR INSERT TO authenticated WITH CHECK (auth.uid() = hospital_user_id);
-
 DROP POLICY IF EXISTS "Users can update their own claims" ON claims;
-CREATE POLICY "Users can update their own claims" ON claims
-    FOR UPDATE TO authenticated USING (auth.uid() = hospital_user_id) WITH CHECK (auth.uid() = hospital_user_id);
-
 DROP POLICY IF EXISTS "Authenticated users can read policies" ON policies;
-CREATE POLICY "Authenticated users can read policies" ON policies
-    FOR SELECT TO authenticated USING (true);
 
 -- Seed: Mock Indian Health Insurance Policies (fixed UUIDs for testing)
 INSERT INTO policies (id, patient_id, policy_number, max_coverage_limit, copay_percentage, covered_treatments, excluded_treatments)
@@ -132,3 +195,26 @@ ON CONFLICT (id) DO UPDATE SET
     copay_percentage = EXCLUDED.copay_percentage,
     covered_treatments = EXCLUDED.covered_treatments,
     excluded_treatments = EXCLUDED.excluded_treatments;
+
+-- Seed: Mock reference prices in INR. Illustrative demo values only, NOT
+-- official CGHS / PM-JAY rates; replace with a real rate card before relying
+-- on "overpriced" flags.
+INSERT INTO reference_prices (item_name, typical_max_price, unit)
+VALUES
+    ('Room Charges', 10000.00, 'per day'),
+    ('Isolation Ward Bed', 10000.00, 'per day'),
+    ('High Dependency Unit (HDU)', 30000.00, 'per day'),
+    ('ICU Charges', 35000.00, 'per day'),
+    ('Anesthesia', 30000.00, 'per procedure'),
+    ('Specialist Consultation', 25000.00, 'per admission'),
+    ('Lab Tests / Blood Work', 12000.00, 'per admission'),
+    ('X-Ray', 8000.00, 'per scan'),
+    ('Ultrasound', 6000.00, 'per scan'),
+    ('CT Scan', 18000.00, 'per scan'),
+    ('MRI', 20000.00, 'per scan'),
+    ('PET-CT Scan', 35000.00, 'per scan'),
+    ('Tetanus Prophylaxis', 1500.00, 'per dose'),
+    ('Ambulance', 5000.00, 'per trip')
+ON CONFLICT (item_name) DO UPDATE SET
+    typical_max_price = EXCLUDED.typical_max_price,
+    unit = EXCLUDED.unit;

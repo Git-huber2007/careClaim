@@ -45,6 +45,9 @@ export const IconArrowLeft = make(<path d="M19 12H5M12 19l-7-7 7-7" />);
 export const IconRefresh = make(<><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></>);
 export const IconSparkle = make(<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8" />);
 export const IconWallet = make(<><path d="M20 7H5a2 2 0 0 1 0-4h13v4" /><path d="M3 5v14a2 2 0 0 0 2 2h15V7" /><circle cx="16" cy="14" r="1.5" /></>);
+export const IconFlag = make(<><path d="M4 22V4" /><path d="M4 4h13l-2 4 2 4H4" /></>);
+export const IconUser = make(<><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>);
+export const IconBuilding = make(<><rect x="4" y="3" width="16" height="18" rx="1.5" /><path d="M12 7v4M10 9h4M9 21v-4h6v4" /></>);
 export const IconLayers = make(<><path d="m12 2 10 5-10 5L2 7z" /><path d="m2 17 10 5 10-5M2 12l10 5 10-5" /></>);
 
 export const Spinner = ({ className = 'h-4 w-4' }) => (

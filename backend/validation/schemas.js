@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { FLAGS } from '../services/adjudicationMath.js';
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
@@ -25,15 +26,42 @@ export const claimSubmissionSchema = z
 
 export const uuidParamSchema = z.object({ id: z.string().uuid() });
 
+/** Account setup: a patient must name the policy they hold. */
+export const profileSchema = z.discriminatedUnion('role', [
+  z.object({ role: z.literal('HOSPITAL') }),
+  z.object({
+    role: z.literal('PATIENT'),
+    policy_number: z
+      .string()
+      .trim()
+      .min(1, 'Policy number is required')
+      .max(255)
+      .regex(/^[A-Za-z0-9 ._/-]+$/, 'Policy number contains unsupported characters'),
+    patient_id: z.string().trim().min(1, 'Patient ID is required').max(255),
+  }),
+]);
+
+export const disputeSubmissionSchema = z.object({
+  line_number: z.number().int().positive(),
+  note: z.string().trim().max(1000).optional(),
+});
+
+export const disputeResponseSchema = z.object({
+  status: z.enum(['ACCEPTED', 'REJECTED']),
+  response: z.string().trim().min(1, 'A response is required').max(1000),
+});
+
 /** Validates the structured JSON returned by Gemini. */
 export const adjudicationResultSchema = z.object({
   chain_of_thought: z.array(z.string()).min(1),
-  final_status: z.enum(['APPROVED', 'PARTIAL', 'DENIED']),
-  approved_amount: z.number().nonnegative(),
-  denied_items: z.array(
+  line_items: z.array(
     z.object({
+      line: z.number(),
       item_name: z.string(),
+      flag: z.enum(FLAGS),
       reason: z.string(),
     })
   ),
+  final_status: z.enum(['APPROVED', 'PARTIAL', 'DENIED']),
+  approved_amount: z.number().nonnegative(),
 });
