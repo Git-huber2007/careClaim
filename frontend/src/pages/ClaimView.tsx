@@ -13,10 +13,9 @@ import { DischargeSlipModal } from '../components/DischargeSlipModal';
 import { DisputeCard } from '../components/DisputeCard';
 import { FlaggedLine } from '../components/FlaggedLine';
 import { formatCurrency } from '../lib/format';
-import { BarChart3, FileText, Printer, Smartphone } from 'lucide-react';
+import { BarChart3, FileText, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { PlainSummary } from '../components/PlainSummary';
-import { PatientSmsModal } from '../components/PatientSmsModal';
 import { BenchmarkInspectorModal } from '../components/BenchmarkInspectorModal';
 
 /** Remounts per claim, so one claim's run never shows under another claim's URL. */
@@ -33,7 +32,6 @@ function ClaimDetail({ id }: { id: string }) {
   const [events, setEvents] = useState<TerminalEvent[]>([]);
   const [streaming, setStreaming] = useState(false); // this tab holds the open run stream
   const [showSlip, setShowSlip] = useState(false);
-  const [showSmsModal, setShowSmsModal] = useState(false);
   const [inspectedLine, setInspectedLine] = useState<number | null>(null);
   // The flagged line whose dispute form is open (one at a time).
   const [disputeLine, setDisputeLine] = useState<number | null>(null);
@@ -323,25 +321,14 @@ function ClaimDetail({ id }: { id: string }) {
             <h2 className="font-mono text-xs uppercase tracking-widest text-ink-soft">Decision Summary</h2>
             <div className="flex items-center gap-2">
               {decided && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setShowSmsModal(true)}
-                    id="export-sms-alert"
-                    className="inline-flex items-center gap-1 rounded bg-bone hover:bg-rule/40 border border-rule px-2.5 py-1 text-xs font-mono text-pine-deep transition-colors cursor-pointer"
-                    title="Simulate SMS / WhatsApp cashless clearance alert sent to patient phone"
-                  >
-                    <Smartphone size={13} /> SMS Alert
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowSlip(true)}
-                    id="export-discharge-slip"
-                    className="inline-flex items-center gap-1 rounded bg-bone hover:bg-rule/40 border border-rule px-2.5 py-1 text-xs font-mono text-pine-deep transition-colors cursor-pointer"
-                  >
-                    <Printer size={13} /> Discharge Slip
-                  </button>
-                </>
+                <button
+                  type="button"
+                  onClick={() => setShowSlip(true)}
+                  id="export-discharge-slip"
+                  className="inline-flex items-center gap-1 rounded bg-bone hover:bg-rule/40 border border-rule px-2.5 py-1 text-xs font-mono text-pine-deep transition-colors cursor-pointer"
+                >
+                  <Printer size={13} /> Discharge Slip
+                </button>
               )}
               <StatusStamp status={busy ? 'PROCESSING' : stalled ? 'PENDING' : claim.status} />
             </div>
@@ -403,7 +390,6 @@ function ClaimDetail({ id }: { id: string }) {
       </div>
 
       {showSlip && <DischargeSlipModal claim={claim} onClose={() => setShowSlip(false)} />}
-      {showSmsModal && <PatientSmsModal claim={claim} onClose={() => setShowSmsModal(false)} />}
       {inspected && inspectedLine && (
         <BenchmarkInspectorModal
           item={inspected.item}
