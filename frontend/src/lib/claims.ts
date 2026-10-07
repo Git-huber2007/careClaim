@@ -1,4 +1,5 @@
 import type { TerminalEvent } from '../components/AgentTerminal';
+import { formatCurrency } from './format';
 
 /**
  * The backend stores an adjudication as one `ai_reasoning_log` object:
@@ -42,6 +43,14 @@ export function flaggedLines(log: any): LineDecision[] {
   if (log?.line_items?.length) return log.line_items.filter((l: LineDecision) => l.flag !== 'OK');
   // Claims adjudicated before per-line flags existed only recorded denied items.
   return (log?.denied_items ?? []).map((d: any) => ({ ...d, flag: d.flag ?? 'NOT_COVERED' }));
+}
+
+/**
+ * The approved amount as shown on screen. Until a verdict is saved the stored
+ * amount is only the column default of 0, which would read as a full denial.
+ */
+export function approvedDisplay(claim: any) {
+  return claim.status === 'PENDING' ? '—' : formatCurrency(claim.approved_amount);
 }
 
 /** What the patient still owes on an adjudicated claim. */

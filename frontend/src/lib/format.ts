@@ -7,6 +7,9 @@ export function formatCurrency(amount: number) {
   }).format(amount);
 }
 
+/** The first block of a UUID, as claims are referred to on screen. */
+export const shortId = (id: string) => id.split('-')[0];
+
 export function formatDate(iso?: string) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-IN', {

@@ -148,8 +148,11 @@ const inFlight = new Set();
 /** GET /api/claims/:id */
 export async function getClaim(req, res) {
   const { id } = uuidParamSchema.parse(req.params);
+  // Read before the row: a run that finishes while the query is out must not
+  // pair a stale PENDING row with "nothing is running".
+  const adjudicating = inFlight.has(id);
   const claim = await getAccessibleClaim(id, req);
-  res.json({ claim: { ...present(claim, req), adjudicating: inFlight.has(claim.id) } });
+  res.json({ claim: { ...present(claim, req), adjudicating } });
 }
 
 /**
@@ -167,16 +170,18 @@ async function adjudicate(id, req, { onStage = () => {}, onLog = () => {} } = {}
   if (inFlight.has(claim.id)) {
     throw new HttpError(409, 'This claim is already being adjudicated. The verdict appears when that run finishes.');
   }
+  // A saved verdict is final: patients raise disputes against its line flags.
+  if (claim.status !== 'PENDING') throw new HttpError(409, 'This claim has already been adjudicated.');
 
   inFlight.add(claim.id);
   try {
-    return await runAgent(claim, req, { onStage, onLog });
+    return present(await runAgent(claim, { onStage, onLog }), req);
   } finally {
     inFlight.delete(claim.id);
   }
 }
 
-async function runAgent(claim, req, { onStage, onLog }) {
+async function runAgent(claim, { onStage, onLog }) {
   const startedAt = Date.now();
   const logLines = [];
   let listenerMs = 0; // time spent inside onLog (stream pacing), kept out of the reported duration
@@ -281,11 +286,13 @@ async function runAgent(claim, req, { onStage, onLog }) {
       ai_reasoning_log: reasoningLog,
     })
     .eq('id', claim.id)
+    .eq('status', 'PENDING') // never replaces a verdict another run saved meanwhile
     .select('*, policies(*), disputes(*)')
-    .single();
+    .maybeSingle();
 
   if (error) throw new HttpError(500, `Failed to save adjudication: ${error.message}`);
-  return present(updated, req);
+  if (!updated) throw new HttpError(409, 'This claim has already been adjudicated.');
+  return updated;
 }
 
 // Gap between streamed log lines, so a terminal UI prints them one by one

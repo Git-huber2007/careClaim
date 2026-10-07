@@ -3,6 +3,7 @@ import { fetchApi } from '../lib/api';
 import { flagLabel, isSuspicious } from '../lib/claims';
 import type { Dispute, LineDecision } from '../lib/claims';
 import { formatCurrency } from '../lib/format';
+import { NoteForm } from './NoteForm';
 import { toast } from 'sonner';
 
 interface FlaggedLineProps {
@@ -29,7 +30,6 @@ export function FlaggedLine({ claimId, line, canDispute, disputed, onDisputed }:
         body: JSON.stringify({ line_number: line.line, note: note.trim() || undefined })
       });
       onDisputed(dispute);
-      setOpen(false);
       toast.success('Dispute sent to the hospital');
     } catch (err: any) {
       toast.error(err.message);
@@ -59,35 +59,15 @@ export function FlaggedLine({ claimId, line, canDispute, disputed, onDisputed }:
               Dispute this charge
             </button>
           ) : (
-            <div className="space-y-2">
-              <textarea
-                rows={2}
-                maxLength={1000}
-                value={note}
-                onChange={e => setNote(e.target.value)}
-                aria-label={`Note for the dispute on ${line.item_name}`}
-                placeholder="Optional: tell the hospital why you are questioning this charge"
-                className="w-full bg-paper border border-rule rounded px-3 py-2 text-sm text-ink resize-y focus:outline-none focus:border-pine"
-              />
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  disabled={sending}
-                  className="border border-rule bg-paper hover:bg-rule/40 text-pine-deep rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={submit}
-                  disabled={sending}
-                  className="bg-pine hover:bg-pine-deep text-bone rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-                >
-                  {sending ? 'Sending...' : 'Send to hospital'}
-                </button>
-              </div>
-            </div>
+            <NoteForm
+              value={note}
+              onChange={setNote}
+              ariaLabel={`Note for the dispute on ${line.item_name}`}
+              placeholder="Optional: tell the hospital why you are questioning this charge"
+              busy={sending}
+              secondary={{ label: 'Cancel', onClick: () => setOpen(false) }}
+              primary={{ label: sending ? 'Sending...' : 'Send to hospital', onClick: submit }}
+            />
           )}
         </div>
       )}

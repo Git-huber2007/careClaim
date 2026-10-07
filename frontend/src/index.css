@@ -30,10 +30,10 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* The discharge slip is portalled to <body>, outside #root, so hiding the app
-   while it is open leaves the slip as the only thing on the printed page. */
+/* A printable overlay is portalled to <body> and marked data-print-root; while
+   one is open, everything else on the page is left out of the printout. */
 @media print {
-  body:has(#printable-clearance-slip) #root {
+  body:has(> [data-print-root]) > :not([data-print-root]) {
     display: none;
   }
 }

@@ -4,7 +4,8 @@ import { fetchApi } from '../lib/api';
 import { useAccount } from '../lib/account';
 import { flagLabel } from '../lib/claims';
 import type { Dispute } from '../lib/claims';
-import { formatCurrency, formatDate } from '../lib/format';
+import { formatCurrency, formatDate, shortId } from '../lib/format';
+import { NoteForm } from './NoteForm';
 import { toast } from 'sonner';
 
 const STATUS = {
@@ -16,7 +17,7 @@ const STATUS = {
 interface DisputeCardProps {
   dispute: Dispute;
   /** Called with the answered dispute after the hospital responds. */
-  onChanged?: (dispute: Dispute) => void;
+  onChanged: (dispute: Dispute) => void;
   /** Link to the claim, for lists that span claims. */
   showClaim?: boolean;
 }
@@ -42,7 +43,7 @@ export function DisputeCard({ dispute, onChanged, showClaim = false }: DisputeCa
         method: 'POST',
         body: JSON.stringify({ status: decision, response: response.trim() })
       });
-      onChanged?.(answered);
+      onChanged(answered);
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -67,7 +68,7 @@ export function DisputeCard({ dispute, onChanged, showClaim = false }: DisputeCa
               <>
                 {' · '}
                 <Link to={`/claims/${dispute.claim_id}`} className="text-pine font-medium hover:underline">
-                  #{dispute.claim_id.split('-')[0]}
+                  #{shortId(dispute.claim_id)}
                 </Link>
                 {!isPatient && dispute.patient_id ? ` · ${dispute.patient_id}` : ''}
               </>
@@ -92,35 +93,15 @@ export function DisputeCard({ dispute, onChanged, showClaim = false }: DisputeCa
       )}
 
       {!isPatient && dispute.status === 'OPEN' && (
-        <div className="space-y-2 pt-1">
-          <textarea
-            rows={2}
-            maxLength={1000}
-            value={response}
-            onChange={e => setResponse(e.target.value)}
-            aria-label="Response to the patient"
-            placeholder="Explain the charge, or say how it will be corrected…"
-            className="w-full bg-paper border border-rule rounded px-3 py-2 text-sm resize-y focus:outline-none focus:border-pine"
-          />
-          <div className="flex flex-wrap justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => respond('REJECTED')}
-              disabled={busy}
-              className="border border-rule bg-paper hover:bg-rule/40 text-pine-deep rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-            >
-              Stand by charge
-            </button>
-            <button
-              type="button"
-              onClick={() => respond('ACCEPTED')}
-              disabled={busy}
-              className="bg-pine hover:bg-pine-deep text-bone rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-            >
-              Agree and correct
-            </button>
-          </div>
-        </div>
+        <NoteForm
+          value={response}
+          onChange={setResponse}
+          ariaLabel="Response to the patient"
+          placeholder="Explain the charge, or say how it will be corrected…"
+          busy={busy}
+          secondary={{ label: 'Stand by charge', onClick: () => respond('REJECTED') }}
+          primary={{ label: 'Agree and correct', onClick: () => respond('ACCEPTED') }}
+        />
       )}
     </li>
   );

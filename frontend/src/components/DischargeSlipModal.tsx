@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { formatCurrency, formatDate } from '../lib/format';
+import { formatCurrency, formatDate, shortId } from '../lib/format';
 import { flagLabel, patientPayable } from '../lib/claims';
 import { Printer, X } from 'lucide-react';
 
@@ -37,14 +37,14 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
       : 'border-rose-700 text-rose-800 bg-rose-50';
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm print:static print:block print:overflow-visible print:p-0 print:bg-white print:backdrop-blur-none">
+    <div data-print-root className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm print:static print:block print:overflow-visible print:p-0 print:bg-white print:backdrop-blur-none">
       <div className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-paper text-ink shadow-2xl border border-rule print:max-h-none print:max-w-none print:overflow-visible print:shadow-none print:w-full print:rounded-none print:border-none">
         {/* Action Toolbar (Screen Only) */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-rule bg-bone px-6 py-3 print:hidden">
           <div className="flex items-center gap-2">
             <span className="font-serif text-base text-pine-deep font-bold">Discharge Clearance & EOB Slip</span>
             <span className="rounded bg-paper px-2 py-0.5 text-xs font-mono text-ink-soft border border-rule">
-              #{claim.id?.slice(0, 8)}
+              #{shortId(claim.id)}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -209,7 +209,7 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
             </div>
             <div className="text-right">
               <p className="font-bold text-pine-deep font-serif text-sm">CareClaim Autonomous Adjudicator</p>
-              <p className="text-[10px] text-ink-soft mt-0.5">Checksum: {claim.id?.slice(0, 8)}-VERIFIED-OK</p>
+              <p className="text-[10px] text-ink-soft mt-0.5">Checksum: {shortId(claim.id)}-VERIFIED-OK</p>
               <div className="mt-8 border-b border-ink-soft/40 w-48 ml-auto"></div>
               <p className="mt-1 text-[10px] text-ink-soft">Deterministic Math Pass</p>
             </div>

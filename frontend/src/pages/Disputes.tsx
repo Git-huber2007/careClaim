@@ -37,8 +37,8 @@ export function Disputes() {
     setDisputes(list => (list ?? []).map(d => (d.id === answered.id ? { ...d, ...answered } : d)));
 
   const all = disputes ?? [];
-  const count = (key: string) => (key === 'ALL' ? all.length : all.filter(d => d.status === key).length);
-  const visible = filter === 'ALL' ? all : all.filter(d => d.status === filter);
+  const byStatus = (key: typeof filter) => (key === 'ALL' ? all : all.filter(d => d.status === key));
+  const visible = byStatus(filter);
 
   return (
     <div className="min-h-screen p-6 md:p-10 max-w-4xl mx-auto space-y-8">
@@ -66,7 +66,7 @@ export function Disputes() {
                 filter === f.key ? 'bg-pine text-bone' : 'text-ink-soft hover:bg-rule/40'
               }`}
             >
-              {f.label} {count(f.key)}
+              {f.label} {byStatus(f.key).length}
             </button>
           ))}
         </div>

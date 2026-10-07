@@ -8,7 +8,7 @@ import { Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 // The file travels as base64 inside JSON (a third larger), and the API accepts 15 MB.
-const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_UPLOAD_MB = 10;
 
 export function NewClaim() {
   const navigate = useNavigate();
@@ -47,8 +47,8 @@ export function NewClaim() {
       toast.error('Please upload a PDF document or image (PNG, JPG, WebP).');
       return;
     }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      toast.error('That file is too large. Upload a document under 10 MB.');
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      toast.error(`That file is too large. Upload a document under ${MAX_UPLOAD_MB} MB.`);
       return;
     }
     setExtracting(true);

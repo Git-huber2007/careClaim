@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { API_BASE, errorMessage, fetchApi, getAccessToken } from '../lib/api';
 import { useAccount } from '../lib/account';
-import { flagLabel, flaggedLines, isSuspicious, patientPayable, toPayoutBreakdown, toTerminalEvents } from '../lib/claims';
+import { approvedDisplay, flagLabel, flaggedLines, isSuspicious, patientPayable, toPayoutBreakdown, toTerminalEvents } from '../lib/claims';
 import type { Dispute } from '../lib/claims';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { AgentTerminal } from '../components/AgentTerminal';
@@ -41,8 +41,12 @@ function ClaimDetail({ id }: { id: string }) {
           setLoadError('');
           // A run still in flight has no saved log yet; keep the lines already streamed.
           if (data.ai_reasoning_log) setEvents(toTerminalEvents(data.ai_reasoning_log));
+          return true;
         })
-        .catch((err: any) => setLoadError(err.message)),
+        .catch((err: any) => {
+          setLoadError(err.message);
+          return false;
+        }),
     [id]
   );
 
@@ -54,8 +58,22 @@ function ClaimDetail({ id }: { id: string }) {
   const adjudicating = Boolean(claim?.adjudicating);
   useEffect(() => {
     if (!adjudicating || streaming) return;
-    const timer = setInterval(loadClaim, 2000);
-    return () => clearInterval(timer);
+    // Each poll waits for the one before it, so slow responses cannot pile up
+    // or land out of order, and backs off while the API is failing.
+    let timer: ReturnType<typeof setTimeout>;
+    let stopped = false;
+    let delay = 2000;
+    const schedule = () => {
+      timer = setTimeout(async () => {
+        delay = (await loadClaim()) ? 2000 : Math.min(delay * 2, 30000);
+        if (!stopped) schedule();
+      }, delay);
+    };
+    schedule();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
   }, [adjudicating, streaming, loadClaim]);
 
   useEffect(() => () => streamAbort.current?.abort(), []);
@@ -253,8 +271,7 @@ function ClaimDetail({ id }: { id: string }) {
           <div className="text-center mb-8">
             <div className="text-ink-soft text-sm mb-1">Approved Payout</div>
             <div className="font-serif text-5xl text-pine-deep tracking-tight">
-              {/* Until a verdict exists the stored amount is only the column default of 0. */}
-              {decided ? formatCurrency(claim.approved_amount) : '—'}
+              {approvedDisplay(claim)}
             </div>
             {payoutNote && <div className="text-xs text-ink-soft font-mono mt-2">{payoutNote}</div>}
           </div>

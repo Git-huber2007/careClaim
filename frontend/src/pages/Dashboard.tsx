@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { fetchApi } from '../lib/api';
-import { formatCurrency } from '../lib/format';
+import { approvedDisplay } from '../lib/claims';
+import { formatCurrency, shortId } from '../lib/format';
 import { StatusStamp } from '../components/StatusStamp';
 import { motion } from 'motion/react';
 import { Plus } from 'lucide-react';
@@ -74,15 +75,13 @@ export function Dashboard() {
                 className="hover:bg-bone/50 cursor-pointer transition-colors"
               >
                 <td className="p-4 font-mono text-xs text-ink-soft">
-                  <div className="text-ink font-medium">{claim.id.split('-')[0]}</div>
+                  <div className="text-ink font-medium">{shortId(claim.id)}</div>
                   <div>{new Date(claim.created_at).toLocaleDateString()}</div>
                 </td>
                 <td className="p-4">{claim.patient_id}</td>
                 <td className="p-4 font-mono">{formatCurrency(claim.total_billed)}</td>
                 <td className="p-4 font-mono font-bold text-pine-deep">
-                  {claim.status === 'PENDING' || claim.status === 'PROCESSING' 
-                    ? '-' 
-                    : formatCurrency(claim.approved_amount)}
+                  {approvedDisplay(claim)}
                 </td>
                 <td className="p-4">
                   <StatusStamp status={claim.status} />
