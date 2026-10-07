@@ -13,8 +13,10 @@ import { DischargeSlipModal } from '../components/DischargeSlipModal';
 import { DisputeCard } from '../components/DisputeCard';
 import { FlaggedLine } from '../components/FlaggedLine';
 import { formatCurrency } from '../lib/format';
-import { Printer } from 'lucide-react';
+import { BarChart3, Printer, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
+import { PatientSmsModal } from '../components/PatientSmsModal';
+import { BenchmarkInspectorModal } from '../components/BenchmarkInspectorModal';
 
 /** Remounts per claim, so one claim's run never shows under another claim's URL. */
 export function ClaimView() {
@@ -30,6 +32,12 @@ function ClaimDetail({ id }: { id: string }) {
   const [events, setEvents] = useState<TerminalEvent[]>([]);
   const [streaming, setStreaming] = useState(false); // this tab holds the open run stream
   const [showSlip, setShowSlip] = useState(false);
+  const [showSmsModal, setShowSmsModal] = useState(false);
+  const [inspectorItem, setInspectorItem] = useState<{
+    item: { item_name: string; cost: number };
+    hit?: any;
+    lineNumber: number;
+  } | null>(null);
   const streamAbort = useRef<AbortController | null>(null);
 
   const loadClaim = useCallback(
@@ -198,22 +206,49 @@ function ClaimDetail({ id }: { id: string }) {
               <div className="font-mono bg-bone px-1 rounded inline-block">{claim.diagnosis_code}</div>
             </div>
             <div className="border-t border-rule pt-4">
-              <div className="text-ink-soft mb-2">Itemized Bill</div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-ink-soft">Itemized Bill</span>
+                <span className="text-[10px] font-mono text-pine bg-pine/10 px-1.5 py-0.5 rounded flex items-center gap-1">
+                  <BarChart3 size={11} /> Rate Inspector
+                </span>
+              </div>
               <div className="space-y-2">
                 {claim.raw_bill_data.map((item: any, i: number) => {
-                  const hit = flagByLine.get(i + 1);
+                  const lineNumber = i + 1;
+                  const hit = flagByLine.get(lineNumber);
                   return (
-                    <div key={i} title={hit?.reason} className={`font-mono text-xs p-2 rounded ${hit ? 'bg-vermilion/10' : 'bg-bone'}`}>
-                      <div className="flex justify-between">
-                        <span className="truncate pr-2">{item.item_name}</span>
-                        <span>{formatCurrency(item.cost)}</span>
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setInspectorItem({ item, hit, lineNumber })}
+                      title="Click to inspect hospital pricing vs CGHS benchmark tariff"
+                      className={`w-full text-left font-mono text-xs p-2 rounded transition-all cursor-pointer border ${
+                        hit
+                          ? 'bg-vermilion/10 border-vermilion/30 hover:bg-vermilion/15'
+                          : 'bg-bone border-transparent hover:border-pine/30 hover:bg-rule/40'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="truncate pr-2 font-medium">{item.item_name}</span>
+                        <span className="font-bold">{formatCurrency(item.cost)}</span>
                       </div>
-                      {hit && (
-                        <div className={`mt-1 text-[10px] font-bold uppercase tracking-widest ${isSuspicious(hit.flag) ? 'text-vermilion' : 'text-amber'}`}>
-                          {flagLabel(hit.flag)}
-                        </div>
-                      )}
-                    </div>
+                      <div className="flex justify-between items-center mt-1">
+                        {hit ? (
+                          <div
+                            className={`text-[10px] font-bold uppercase tracking-widest ${
+                              isSuspicious(hit.flag) ? 'text-vermilion' : 'text-amber'
+                            }`}
+                          >
+                            {flagLabel(hit.flag)}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-moss font-semibold">Standard Rate</div>
+                        )}
+                        <span className="text-[9px] text-ink-soft hover:text-pine">
+                          Inspect ↗
+                        </span>
+                      </div>
+                    </button>
                   );
                 })}
               </div>
@@ -255,14 +290,25 @@ function ClaimDetail({ id }: { id: string }) {
             <h2 className="font-mono text-xs uppercase tracking-widest text-ink-soft">Decision Summary</h2>
             <div className="flex items-center gap-2">
               {decided && (
-                <button
-                  type="button"
-                  onClick={() => setShowSlip(true)}
-                  id="export-discharge-slip"
-                  className="inline-flex items-center gap-1 rounded bg-bone hover:bg-rule/40 border border-rule px-2.5 py-1 text-xs font-mono text-pine-deep transition-colors cursor-pointer"
-                >
-                  <Printer size={13} /> Discharge Slip
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowSmsModal(true)}
+                    id="export-sms-alert"
+                    className="inline-flex items-center gap-1 rounded bg-bone hover:bg-rule/40 border border-rule px-2.5 py-1 text-xs font-mono text-pine-deep transition-colors cursor-pointer"
+                    title="Simulate SMS / WhatsApp cashless clearance alert sent to patient phone"
+                  >
+                    <Smartphone size={13} /> SMS Alert
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowSlip(true)}
+                    id="export-discharge-slip"
+                    className="inline-flex items-center gap-1 rounded bg-bone hover:bg-rule/40 border border-rule px-2.5 py-1 text-xs font-mono text-pine-deep transition-colors cursor-pointer"
+                  >
+                    <Printer size={13} /> Discharge Slip
+                  </button>
+                </>
               )}
               <StatusStamp status={busy ? 'PROCESSING' : claim.status} />
             </div>
@@ -321,6 +367,16 @@ function ClaimDetail({ id }: { id: string }) {
       </div>
 
       {showSlip && <DischargeSlipModal claim={claim} onClose={() => setShowSlip(false)} />}
+      {showSmsModal && <PatientSmsModal claim={claim} onClose={() => setShowSmsModal(false)} />}
+      {inspectorItem && (
+        <BenchmarkInspectorModal
+          item={inspectorItem.item}
+          hit={inspectorItem.hit}
+          lineNumber={inspectorItem.lineNumber}
+          onClose={() => setInspectorItem(null)}
+          canDispute={canDispute}
+        />
+      )}
     </div>
   );
 }

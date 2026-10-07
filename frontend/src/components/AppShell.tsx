@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useAccount } from '../lib/account';
 import { supabase } from '../lib/supabase';
+import { JudgeQuickSwitcher } from './JudgeQuickSwitcher';
 
 const NAV = {
   HOSPITAL: [
@@ -59,6 +60,7 @@ export function AppShell() {
         </div>
       </header>
       <Outlet />
+      <JudgeQuickSwitcher currentRole={profile.role} />
     </>
   );
 }
