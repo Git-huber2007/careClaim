@@ -93,18 +93,24 @@ export default function ClaimUploader() {
       <form onSubmit={handleSubmit} className="glass space-y-6 p-6 md:p-8" noValidate id="claim-form">
         {/* Samples */}
         <div>
-          <p className="label flex items-center gap-1.5"><IconSparkle className="h-3.5 w-3.5" /> Quick-load demo scenario</p>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="mb-2.5 flex items-center justify-between">
+            <p className="label !mb-0 flex items-center gap-1.5"><IconSparkle className="h-3.5 w-3.5" /> Quick-load demo scenarios ({SAMPLE_BILLS.length})</p>
+            <span className="text-[11px] text-ink-400">Click any to auto-fill</span>
+          </div>
+          <div className="grid max-h-80 gap-2.5 overflow-y-auto pr-1 sm:grid-cols-2">
             {SAMPLE_BILLS.map((s, i) => (
               <button
                 key={s.label}
                 id={`sample-${i}`}
                 type="button"
                 onClick={() => loadSample(s)}
-                className="group rounded-xl border border-white/[0.06] bg-ink-950/40 px-3.5 py-2.5 text-left transition hover:-translate-y-0.5 hover:border-brand-400/30 hover:bg-brand-400/[0.04] cursor-pointer"
+                className="group rounded-xl border border-white/[0.06] bg-ink-950/40 p-3 text-left transition hover:-translate-y-0.5 hover:border-brand-400/30 hover:bg-brand-400/[0.04] cursor-pointer"
               >
-                <p className="text-sm font-semibold text-ink-200 group-hover:text-white">{s.label}</p>
-                <p className="text-xs text-ink-400">{s.hint}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-ink-200 group-hover:text-white truncate">{s.label}</p>
+                  <span className="rounded bg-white/[0.05] px-1.5 py-0.5 text-[10px] font-medium text-ink-300 shrink-0">{s.category}</span>
+                </div>
+                <p className="mt-1 text-[11px] text-ink-400">{s.hint}</p>
               </button>
             ))}
           </div>

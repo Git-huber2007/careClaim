@@ -84,5 +84,35 @@ VALUES
     '44444444-4444-4444-8444-444444444444', 'PAT-1004', 'POL-055-BASIC', 50000.00, 30.00,
     ARRAY['Room Charges','Consultation','Blood Test','Medications'],
     ARRAY['Surgery','ICU Charges','MRI','CT Scan','Cosmetic Surgery','Ambulance','Physiotherapy','Private Deluxe Room']
+),
+(
+    '55555555-5555-4555-8555-555555555555', 'PAT-1005', 'POL-990-ONCOLOGY', 800000.00, 5.00,
+    ARRAY['Room Charges','ICU Charges','Oncology Consultation','Chemotherapy Infusion','Immunotherapy','Port-a-Cath Insertion','PET Scan','CT Scan','Anti-Emetics','Blood Transfusion','Lab Tests','Nursing Care'],
+    ARRAY['Experimental Off-Label Drugs','Alternative Herbal Therapy','Acupuncture','Nutritional Supplements','Cosmetic Reconstruction']
+),
+(
+    '66666666-6666-4666-8666-666666666666', 'PAT-1006', 'POL-330-ORTHO-PLUS', 350000.00, 15.00,
+    ARRAY['Room Charges','Orthopedic Surgery','Total Knee Replacement','Hip Arthroplasty','Titanium Prosthesis Implant','Spinal Anesthesia','Post-Op Physical Therapy','Pre-Op Blood Work','X-Ray','Crutches and Walker','Nursing Care'],
+    ARRAY['Robotic-Assisted Surgery Surcharge','Private Deluxe Suite','Personal Massager Device','Non-FDA Bone Grafts','Acupuncture']
+),
+(
+    '77777777-7777-4777-8777-777777777777', 'PAT-1007', 'POL-205-MATERNITY-BRONZE', 60000.00, 10.00,
+    ARRAY['Labor and Delivery','Cesarean Section','Obstetrician Consultation','Epidural Anesthesia','Neonatal Care','Newborn Blood Screening','Routine Nursery','Postpartum Care'],
+    ARRAY['Private Water Birth Suite','Luxury Amenities Pack','Doula Services','Elective Cosmetic Scar Correction']
+),
+(
+    '88888888-8888-4888-8888-888888888888', 'PAT-1008', 'POL-888-COMPREHENSIVE', 600000.00, 10.00,
+    ARRAY['Emergency Room Care','ICU Charges','Critical Care Consultation','Continuous IV Insulin Infusion','Arterial Blood Gas Analysis','Electrolyte Panel','Cardiac Monitoring','IV Fluids and Resuscitation','Diagnostic Ultrasound','Nursing Care'],
+    ARRAY['Cosmetic Surgery','Experimental Off-Label Drugs','Personal Comfort Items','Vitamins & Supplements']
+),
+(
+    '99999999-9999-4999-8999-999999999999', 'PAT-1009', 'POL-620-STANDARD', 200000.00, 20.00,
+    ARRAY['Room Charges','General Surgery','Laparoscopic Cholecystectomy','Anesthesia','Operating Room Facility','Pathology Exam','Pre-Op Lab Work','Antibiotics & Analgesics','Nursing Care'],
+    ARRAY['Open Cholecystectomy Duplicate Billing','Unbundled Surgical Trays','Cosmetic Keloid Treatment','Private Deluxe Room']
+),
+(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'PAT-1010', 'POL-440-TRAUMA', 400000.00, 10.00,
+    ARRAY['Emergency Trauma Resuscitation','High Dependency Unit (HDU)','Brain CT Scan with Contrast','Cervical Spine X-Ray','Neurotrauma Consultation','Osmotic Diuretics Infusion','Suture and Wound Debridement','Tetanus Prophylaxis','Nursing Care'],
+    ARRAY['Experimental Neuroregenerative Therapy','Non-Certified Neck Braces','Personal Telephone and TV Charges']
 )
 ON CONFLICT (policy_number) DO NOTHING;
