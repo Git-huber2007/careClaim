@@ -1,0 +1,60 @@
+/** Demo scenarios matched to the seeded mock policies in supabase/schema.sql */
+export const SAMPLE_BILLS = [
+  {
+    label: 'Appendectomy + cosmetic add-on',
+    hint: 'Gold · expect PARTIAL',
+    patient_id: 'PAT-1001',
+    policy_id: '11111111-1111-4111-8111-111111111111',
+    diagnosis_code: 'K35.80',
+    items: [
+      { item_name: 'Room Charges (3 days)', cost: 1800 },
+      { item_name: 'Laparoscopic Appendectomy', cost: 8500 },
+      { item_name: 'Anesthesia', cost: 1200 },
+      { item_name: 'Blood Test Panel', cost: 350 },
+      { item_name: 'Cosmetic Scar Revision Surgery', cost: 3200 },
+      { item_name: 'IV Fluids & Medications', cost: 640 },
+      { item_name: 'Vitamin Supplements Pack', cost: 90 },
+    ],
+  },
+  {
+    label: 'Clean pneumonia admission',
+    hint: 'Silver · expect APPROVED',
+    patient_id: 'PAT-1002',
+    policy_id: '22222222-2222-4222-8222-222222222222',
+    diagnosis_code: 'J18.9',
+    items: [
+      { item_name: 'Room Charges (4 days)', cost: 2000 },
+      { item_name: 'Pulmonologist Consultation', cost: 450 },
+      { item_name: 'Chest X-Ray', cost: 300 },
+      { item_name: 'Antibiotic Medications', cost: 780 },
+      { item_name: 'Nursing Care', cost: 600 },
+    ],
+  },
+  {
+    label: 'Cardiac stent, high value',
+    hint: 'Platinum · 0% copay',
+    patient_id: 'PAT-1003',
+    policy_id: '33333333-3333-4333-8333-333333333333',
+    diagnosis_code: 'I21.4',
+    items: [
+      { item_name: 'ICU Charges (2 days)', cost: 6000 },
+      { item_name: 'Coronary Angioplasty', cost: 24000 },
+      { item_name: 'Drug-Eluting Stent', cost: 9500 },
+      { item_name: 'Cardiology Consultation', cost: 700 },
+      { item_name: 'Experimental Gene Therapy Infusion', cost: 15000 },
+      { item_name: 'Ambulance Transfer', cost: 450 },
+    ],
+  },
+  {
+    label: 'Mismatched patient (fraud)',
+    hint: 'Basic · expect DENIED',
+    patient_id: 'PAT-9999',
+    policy_id: '44444444-4444-4444-8444-444444444444',
+    diagnosis_code: 'S72.001A',
+    items: [
+      { item_name: 'Hip Fracture Surgery', cost: 18000 },
+      { item_name: 'MRI Scan', cost: 1500 },
+      { item_name: 'Room Charges (5 days)', cost: 2500 },
+    ],
+  },
+];
