@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 
-const BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
+const rawBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').trim();
+const BASE = (rawBase ? (/^https?:\/\//i.test(rawBase) ? rawBase : `https://${rawBase}`) : 'http://localhost:5000').replace(/\/+$/, '');
 
 export class ApiError extends Error {
   constructor(status, message, details) {

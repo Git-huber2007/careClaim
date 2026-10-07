@@ -9,8 +9,18 @@ const app = express();
 app.disable('x-powered-by');
 app.use(
   cors({
-    origin: (origin, cb) => cb(null, !origin || config.corsOrigins.includes(origin)),
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (config.corsOrigins.includes('*') || config.corsOrigins.includes(origin)) return cb(null, true);
+      // Auto-allow all Vercel domains (production, preview, branch deploys) and local development
+      if (/^https:\/\/[\w.-]+\.vercel\.app$/i.test(origin) || /^http:\/\/localhost(:\d+)?$/i.test(origin)) {
+        return cb(null, true);
+      }
+      return cb(null, false);
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
   })
 );
 app.use(express.json({ limit: '1mb' }));
