@@ -81,7 +81,7 @@
 
 1. Open your [Supabase Dashboard](https://supabase.com).
 2. Go to the **SQL Editor**.
-3. Copy and run the contents of [`supabase/schema.sql`](file:///c:/careClaim/supabase/schema.sql).
+3. Copy and run the contents of [`supabase/schema.sql`](supabase/schema.sql).
    - Creates the `policies` and `claims` tables.
    - Sets up Row Level Security (RLS) policies.
    - Seeds 4 mock policies (`POL-402-GOLD`, `POL-118-SILVER`, `POL-777-PLATINUM`, `POL-055-BASIC`).

@@ -14,6 +14,6 @@ export const config = {
   geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
   corsOrigins: (process.env.CORS_ORIGIN || 'http://localhost:5173')
     .split(',')
-    .map((s) => s.trim())
+    .map((s) => s.trim().replace(/\/+$/, '')) // browsers send Origin without a trailing slash
     .filter(Boolean),
 };

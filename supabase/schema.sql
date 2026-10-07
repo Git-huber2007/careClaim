@@ -1,13 +1,11 @@
 -- =========================================================
 -- CareClaim AI :: Schema, RLS, and Mock Policy Seed
--- Run in the Supabase SQL Editor.
+-- Run in the Supabase SQL Editor. Safe to re-run.
 -- =========================================================
-
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Policies Table (Mock Insurance Data)
 CREATE TABLE IF NOT EXISTS policies (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id VARCHAR(255) NOT NULL,
     policy_number VARCHAR(255) UNIQUE NOT NULL,
     max_coverage_limit DECIMAL(10, 2) NOT NULL,
@@ -19,14 +17,14 @@ CREATE TABLE IF NOT EXISTS policies (
 
 -- Claims Table
 CREATE TABLE IF NOT EXISTS claims (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    hospital_user_id UUID REFERENCES auth.users(id),
-    policy_id UUID REFERENCES policies(id),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    hospital_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    policy_id UUID NOT NULL REFERENCES policies(id),
     patient_id VARCHAR(255) NOT NULL,
     diagnosis_code VARCHAR(100),
     raw_bill_data JSONB NOT NULL,
     total_billed DECIMAL(10, 2) NOT NULL,
-    status VARCHAR(50) DEFAULT 'PENDING', -- PENDING, APPROVED, PARTIAL, DENIED
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING', -- PENDING, APPROVED, PARTIAL, DENIED
     approved_amount DECIMAL(10, 2) DEFAULT 0.00,
     ai_reasoning_log JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -37,21 +35,32 @@ CREATE INDEX IF NOT EXISTS idx_claims_hospital_user_id ON claims(hospital_user_i
 CREATE INDEX IF NOT EXISTS idx_claims_created_at ON claims(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_policies_patient_id ON policies(patient_id);
 
+-- Data API grants. Supabase no longer grants these automatically on new
+-- tables, and without them even the backend's service-role client gets
+-- "permission denied for table ...".
+GRANT SELECT, INSERT, UPDATE, DELETE ON claims, policies TO service_role;
+GRANT SELECT, INSERT, UPDATE ON claims TO authenticated;
+GRANT SELECT ON policies TO authenticated;
+
 -- Row Level Security
 ALTER TABLE claims ENABLE ROW LEVEL SECURITY;
 ALTER TABLE policies ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own claims" ON claims;
 CREATE POLICY "Users can view their own claims" ON claims
-    FOR SELECT USING (auth.uid() = hospital_user_id);
+    FOR SELECT TO authenticated USING (auth.uid() = hospital_user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own claims" ON claims;
 CREATE POLICY "Users can insert their own claims" ON claims
-    FOR INSERT WITH CHECK (auth.uid() = hospital_user_id);
+    FOR INSERT TO authenticated WITH CHECK (auth.uid() = hospital_user_id);
 
+DROP POLICY IF EXISTS "Users can update their own claims" ON claims;
 CREATE POLICY "Users can update their own claims" ON claims
-    FOR UPDATE USING (auth.uid() = hospital_user_id);
+    FOR UPDATE TO authenticated USING (auth.uid() = hospital_user_id) WITH CHECK (auth.uid() = hospital_user_id);
 
+DROP POLICY IF EXISTS "Authenticated users can read policies" ON policies;
 CREATE POLICY "Authenticated users can read policies" ON policies
-    FOR SELECT USING (auth.role() = 'authenticated');
+    FOR SELECT TO authenticated USING (true);
 
 -- Seed: Mock Policies (fixed UUIDs for easy testing)
 INSERT INTO policies (id, patient_id, policy_number, max_coverage_limit, copay_percentage, covered_treatments, excluded_treatments)

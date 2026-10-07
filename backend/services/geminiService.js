@@ -85,11 +85,23 @@ Excluded Treatments: ${JSON.stringify(policy.excluded_treatments)}
 Write 10-25 concise terminal-style lines. Start with ingestion/verification steps (e.g. "Extracting itemized bill: N line items detected", "Cross-referencing Policy ${policy.policy_number}..."), then one line per item ("Item 3 'X' ($Y): COVERED under 'Z'" or "Rejecting line item 4: Cosmetic surgery not covered"), then the math steps, then the final decision.`;
 }
 
-const withTimeout = (promise, ms) =>
-  Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new HttpError(504, 'Gemini request timed out.')), ms)),
-  ]);
+const withTimeout = (promise, ms) => {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new HttpError(504, 'Gemini request timed out.')), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+};
+
+/** The SDK puts the raw JSON error body in err.message; pull out the readable part. */
+function describeError(err) {
+  const message = err?.message || 'unknown error';
+  try {
+    return JSON.parse(message)?.error?.message || message;
+  } catch {
+    return message;
+  }
+}
 
 /**
  * Runs the Gemini adjudication agent. Retries once on transient / malformed output.
@@ -125,12 +137,12 @@ export async function runAdjudicationAgent(claim, policy) {
       lastError = err;
       const status = err?.status ?? err?.code;
       const retryable = !status || status === 429 || status >= 500 || err instanceof SyntaxError || err?.name === 'ZodError';
-      console.warn(`[gemini] attempt ${attempt} failed:`, err?.message || err);
+      console.warn(`[gemini] attempt ${attempt} failed:`, describeError(err));
       if (!retryable || attempt === 2) break;
       await new Promise((r) => setTimeout(r, 1200));
     }
   }
 
   if (lastError instanceof HttpError) throw lastError;
-  throw new HttpError(502, `AI adjudication failed: ${lastError?.message || 'unknown error'}`);
+  throw new HttpError(502, `AI adjudication failed: ${describeError(lastError)}`);
 }

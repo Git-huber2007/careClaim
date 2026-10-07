@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: careclaim-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      # Your Vercel URL, e.g. https://careclaim.vercel.app (comma-separate several)
+      - key: CORS_ORIGIN
+        sync: false

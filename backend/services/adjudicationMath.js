@@ -25,8 +25,9 @@ export function matchDeniedItems(billItems, deniedItems) {
 
   for (const denied of deniedItems) {
     const target = norm(denied.item_name);
-    let idx = billItems.findIndex((b, i) => !used.has(i) && norm(b.item_name) === target);
-    if (idx === -1) {
+    // An empty name would substring-match every bill line below.
+    let idx = target ? billItems.findIndex((b, i) => !used.has(i) && norm(b.item_name) === target) : -1;
+    if (idx === -1 && target) {
       idx = billItems.findIndex(
         (b, i) => !used.has(i) && (norm(b.item_name).includes(target) || target.includes(norm(b.item_name)))
       );
@@ -47,8 +48,25 @@ export function matchDeniedItems(billItems, deniedItems) {
   return { matched, unmatched };
 }
 
-export function computeAdjudication({ billItems, totalBilled, policy, deniedItems }) {
-  const { matched, unmatched } = matchDeniedItems(billItems, deniedItems);
+export function computeAdjudication({ billItems, totalBilled, policy, deniedItems, patientId }) {
+  let { matched, unmatched } = matchDeniedItems(billItems, deniedItems);
+
+  // A patient / policy-holder mismatch is a hard rule, not a judgement call:
+  // deny every line no matter how the agent worded its denied_items.
+  const patientMismatch = patientId !== undefined && norm(patientId) !== norm(policy.patient_id);
+  if (patientMismatch) {
+    const byLine = new Map(matched.map((m) => [m.line, m]));
+    matched = billItems.map(
+      (b, i) =>
+        byLine.get(i + 1) ?? {
+          line: i + 1,
+          item_name: b.item_name,
+          cost: round2(b.cost),
+          reason: 'Patient ID does not match the policy holder (possible fraud).',
+        }
+    );
+    unmatched = [];
+  }
 
   const total = round2(totalBilled);
   const excludedTotal = round2(matched.reduce((s, m) => s + m.cost, 0));
@@ -83,5 +101,6 @@ export function computeAdjudication({ billItems, totalBilled, policy, deniedItem
     },
     denied_items: matched,
     unmatched_denied_items: unmatched,
+    patient_mismatch: patientMismatch,
   };
 }

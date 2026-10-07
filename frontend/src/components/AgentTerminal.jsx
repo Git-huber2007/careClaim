@@ -189,7 +189,7 @@ export default function AgentTerminal({ phase = 'idle', lines = [], animate = tr
           <>
             <p className="text-term-green"><span className="text-brand-300">agent@careclaim</span>:<span className="text-iris-400">~</span>$ adjudicate --autonomous</p>
             <Line n={1} text={`[ERROR] ${error || 'Adjudication failed.'}`} cls="text-term-red" />
-            <Line n={2} text="[SYS] Claim left in PENDING state. No changes were persisted." cls="text-term-cyan/80" />
+            <Line n={2} text="[SYS] No changes were persisted; the claim keeps its previous state." cls="text-term-cyan/80" />
             <p className="mt-2 text-term-green"><span className="text-brand-300">agent@careclaim</span>:<span className="text-iris-400">~</span>$ <Cursor /></p>
           </>
         )}

@@ -93,6 +93,7 @@ export async function processClaim(req, res) {
     totalBilled: claim.total_billed,
     policy,
     deniedItems: result.denied_items,
+    patientId: claim.patient_id,
   });
 
   const aiAmount = Math.round(result.approved_amount * 100) / 100;
@@ -108,6 +109,9 @@ export async function processClaim(req, res) {
 
   const verifierLines = [
     `[VERIFIER] Re-computing payout deterministically from agent's line-item decisions…`,
+    ...(verified.patient_mismatch
+      ? [`[VERIFIER] WARNING: patient ${claim.patient_id} is not policy holder ${policy.patient_id}; all line items denied`]
+      : []),
     `[VERIFIER] ${money(verified.breakdown.total_billed)} − ${money(verified.breakdown.excluded_total)} excluded = ${money(verified.breakdown.eligible_amount)} eligible`,
     `[VERIFIER] Copay ${verified.breakdown.copay_percentage}% = ${money(verified.breakdown.copay_amount)} → payable ${money(verified.breakdown.payable_before_cap)}`,
     ...(verified.breakdown.cap_applied

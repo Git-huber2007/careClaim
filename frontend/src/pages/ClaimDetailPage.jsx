@@ -51,6 +51,7 @@ export default function ClaimDetailPage() {
     } catch (e) {
       setRunError(e.message);
       setPhase('error');
+      setRevealed(Boolean(claim?.ai_reasoning_log)); // a failed re-run keeps the previous result on screen
     }
   }
 

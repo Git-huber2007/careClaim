@@ -16,7 +16,7 @@ export const claimSubmissionSchema = z
         })
       )
       .min(1, 'Bill must contain at least one line item'),
-    total_billed: z.number().positive(),
+    total_billed: z.number().positive().max(99_999_999.99, 'total_billed exceeds the supported maximum'), // DECIMAL(10, 2)
   })
   .refine(
     (d) => Math.abs(round2(d.raw_bill_data.reduce((s, i) => s + i.cost, 0)) - round2(d.total_billed)) < 0.01,
