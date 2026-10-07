@@ -90,19 +90,105 @@ export function Login() {
   return (
     <div className="min-h-screen flex">
       {/* Left Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 md:p-10 bg-paper">
-        <div className="w-full max-w-md space-y-6">
-          {/* Header */}
+      <div className="w-full lg:w-7/12 flex items-center justify-center p-6 md:p-10 bg-paper">
+        <div className="w-full max-w-lg space-y-6">
+          {/* Header & Product Mission */}
           <div>
-            <h1 className="text-4xl font-serif text-pine-deep flex items-center gap-2">
-              CareClaim{' '}
-              <span className="text-phosphor bg-pine px-2 py-0.5 rounded text-2xl font-mono align-middle inline-block transform -translate-y-0.5">
-                AI
+            <div className="flex items-center justify-between">
+              <h1 className="text-3xl md:text-4xl font-serif text-pine-deep flex items-center gap-2">
+                CareClaim{' '}
+                <span className="text-phosphor bg-pine px-2 py-0.5 rounded text-xl md:text-2xl font-mono align-middle inline-block transform -translate-y-0.5">
+                  AI
+                </span>
+              </h1>
+              <span className="text-[11px] font-mono uppercase bg-pine/10 text-pine-deep font-bold px-2.5 py-1 rounded-full border border-pine/20">
+                Judge / Demo Guide
               </span>
-            </h1>
-            <p className="text-ink-soft mt-1.5 text-sm">
-              Autonomous hospital discharge claims adjudication & audit.
+            </div>
+            <p className="text-ink-soft mt-1.5 text-sm font-medium">
+              Autonomous Medical Claim Adjudication, Overcharge Prevention & Patient Audit.
             </p>
+
+            {/* Core Value Pillars for Judges */}
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-bone border border-rule rounded p-2.5">
+                <div className="font-bold text-pine-deep flex items-center gap-1">
+                  <span>⏱</span> 10-Second Discharge
+                </div>
+                <div className="text-ink-soft text-[11px] mt-0.5">
+                  Eliminates 4–6 hour manual discharge approval delays for patients.
+                </div>
+              </div>
+              <div className="bg-bone border border-rule rounded p-2.5">
+                <div className="font-bold text-vermilion flex items-center gap-1">
+                  <span>🛡</span> Stops Overcharging
+                </div>
+                <div className="text-ink-soft text-[11px] mt-0.5">
+                  Audits line items against rate cards; flags markups, unbundling & duplicates.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick-Start Demo Credentials Card for Judges */}
+          <div className="bg-bone border-2 border-pine/30 rounded-lg p-4 space-y-3 shadow-xs">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-mono uppercase font-bold text-pine-deep flex items-center gap-1.5">
+                <span>⚡</span> Evaluator 1-Click Credentials
+              </span>
+              <span className="text-[10px] font-mono text-ink-soft bg-paper px-2 py-0.5 rounded border border-rule">
+                Click to Auto-Fill
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPortalRole('HOSPITAL');
+                  setEmail('doctor.demo@careclaim.org');
+                  setPassword('CareClaim2026!');
+                  toast.info('Filled Hospital Staff demo credentials.');
+                }}
+                className="text-left p-2.5 bg-paper hover:bg-pine/5 border border-rule hover:border-pine rounded transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-1.5 text-xs font-bold text-pine-deep group-hover:text-pine">
+                  <Building2 size={14} /> Hospital Staff
+                </div>
+                <div className="text-[10px] text-ink-soft font-mono mt-1 truncate">
+                  doctor.demo@careclaim.org
+                </div>
+                <div className="text-[10px] text-ink-soft mt-0.5 leading-tight">
+                  Intake, rate audit & AI run
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPortalRole('PATIENT');
+                  setEmail('patient.demo@careclaim.org');
+                  setPassword('CareClaim2026!');
+                  toast.info('Filled Patient demo credentials.');
+                }}
+                className="text-left p-2.5 bg-paper hover:bg-pine/5 border border-rule hover:border-pine rounded transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-1.5 text-xs font-bold text-pine-deep group-hover:text-pine">
+                  <User size={14} /> Patient Account
+                </div>
+                <div className="text-[10px] text-ink-soft font-mono mt-1 truncate">
+                  patient.demo@careclaim.org
+                </div>
+                <div className="text-[10px] text-ink-soft mt-0.5 leading-tight">
+                  Bill audit, copay & disputes
+                </div>
+              </button>
+            </div>
+
+            <div className="text-[11px] text-ink-soft flex items-center justify-between pt-1 border-t border-rule/60">
+              <span>Password: <code className="bg-paper px-1.5 py-0.2 rounded font-mono font-bold text-pine-deep">CareClaim2026!</code></span>
+              <span className="text-[10px] text-ink-soft">New DB? Use <strong>Register</strong> to create in 1 sec</span>
+            </div>
           </div>
 
           {authMode === 'forgot_password' ? (
@@ -258,6 +344,19 @@ export function Login() {
                 </button>
               </div>
 
+              {/* Step-by-Step Instructions Banner */}
+              <div className="bg-pine/5 border border-pine/20 rounded-md p-3 text-xs text-pine-deep space-y-1">
+                <div className="flex items-center gap-2 font-mono font-bold text-[11px] uppercase tracking-wider text-pine">
+                  <span className="bg-pine text-bone px-1.5 py-0.5 rounded text-[10px]">Step 1 of 3</span>
+                  {authMode === 'login' ? 'Authentication' : 'Account Setup'}
+                </div>
+                <p className="text-[11px] text-ink-soft leading-relaxed">
+                  {authMode === 'login'
+                    ? 'Sign in to access your claims queue. For quickest judge testing, use the 1-Click Credentials buttons at the top.'
+                    : 'Create your credentials here. On Step 2, you will pick your hospital organization or enter your insurance card details.'}
+                </p>
+              </div>
+
               {/* Credentials Form */}
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -308,16 +407,22 @@ export function Login() {
 
                 {authMode === 'register' && portalRole === 'PATIENT' && (
                   <p className="text-[11px] text-ink-soft bg-bone p-2.5 rounded border border-rule">
-                    ℹ After registration you will link your Policy Number (e.g. STAR-402-GOLD) and Patient ID to view your discharge claims.
+                    ℹ Next Step: Link your Policy Number (e.g. <code>STAR-402-GOLD</code>) and Patient ID (<code>PAT-1001</code>) to review itemized bills.
+                  </p>
+                )}
+
+                {authMode === 'register' && portalRole === 'HOSPITAL' && (
+                  <p className="text-[11px] text-ink-soft bg-bone p-2.5 rounded border border-rule">
+                    ℹ Next Step: Select your hospital network (e.g. Apollo Hospitals) and enter verification code <code>CARECLAIM-HOSPITAL-2026</code>.
                   </p>
                 )}
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-pine hover:bg-pine-deep text-bone rounded py-2.5 text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer shadow-sm mt-2"
+                  className="w-full bg-pine hover:bg-pine-deep text-bone rounded py-2.5 text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer shadow-sm mt-2 font-mono uppercase tracking-wider"
                 >
-                  {loading ? 'Processing...' : registering ? 'Create Account' : 'Sign In'}
+                  {loading ? 'Processing...' : registering ? 'Create Account & Continue' : 'Sign In to Dashboard'}
                 </button>
               </form>
             </div>
@@ -325,46 +430,94 @@ export function Login() {
         </div>
       </div>
 
-      {/* Right Composition */}
-      <div className="hidden lg:flex w-1/2 bg-pine-deep items-center justify-center p-8 relative overflow-hidden">
+      {/* Right Composition: Evaluator & Judge Presentation Showcase */}
+      <div className="hidden lg:flex w-5/12 bg-pine-deep items-center justify-center p-8 relative overflow-y-auto">
         {/* Decorative Grid */}
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L3N2Zz4=')] opacity-50" />
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L3N2Zz4=')] opacity-50 pointer-events-none" />
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-paper w-84 shadow-2xl rounded-sm p-6 relative border-t-4 border-pine z-10"
-        >
-          <div className="flex justify-between items-center mb-4 border-b border-rule pb-2">
-            <span className="text-[10px] font-mono text-ink-soft uppercase tracking-widest">
-              Claim Ticket #8091
+        <div className="w-full max-w-md space-y-6 z-10 text-bone">
+          {/* Pitch Banner */}
+          <div className="space-y-2">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-phosphor bg-pine px-2 py-0.5 rounded">
+              Project Architecture & Impact
             </span>
-            <span className="text-[10px] font-mono bg-bone px-1.5 py-0.5 rounded text-pine font-bold uppercase">
-              {registering && portalRole === 'PATIENT' ? 'Patient View' : 'Hospital View'}
-            </span>
+            <h2 className="text-2xl font-serif leading-tight">
+              Instant Medical Adjudication & Rate Defense
+            </h2>
+            <p className="text-xs text-bone/70 leading-relaxed">
+              Every year, Indian patients lose hours at discharge counters and face inflated medical bills due to unbundled codes and lack of transparent rate benchmarks.
+            </p>
           </div>
 
-          <div className="space-y-3 mb-8">
-            <div className="h-2 bg-rule/50 rounded w-full" />
-            <div className="h-2 bg-rule/50 rounded w-5/6" />
-            <div className="h-2 bg-rule/50 rounded w-4/6" />
+          {/* Three Feature Highlights */}
+          <div className="space-y-2.5 text-xs">
+            <div className="bg-pine/40 border border-bone/10 p-3 rounded-lg space-y-1">
+              <div className="font-bold text-phosphor flex items-center gap-1.5">
+                <span>⏱</span> 10s Autonomous Turnaround
+              </div>
+              <p className="text-[11px] text-bone/80">
+                Replaces 4–6 hours of stressful discharge queue waiting with sub-10s Gemini 2.5 multimodal bill processing and deterministic math checks.
+              </p>
+            </div>
+
+            <div className="bg-pine/40 border border-bone/10 p-3 rounded-lg space-y-1">
+              <div className="font-bold text-phosphor flex items-center gap-1.5">
+                <span>🛡</span> Overcharge & Duplicate Guard
+              </div>
+              <p className="text-[11px] text-bone/80">
+                Audits raw bill entries against standard rate cards; flags duplicate surgical supplies, inflated room rents, and cosmetic procedures.
+              </p>
+            </div>
+
+            <div className="bg-pine/40 border border-bone/10 p-3 rounded-lg space-y-1">
+              <div className="font-bold text-phosphor flex items-center gap-1.5">
+                <span>💬</span> Patient-Hospital Dispute Desk
+              </div>
+              <p className="text-[11px] text-bone/80">
+                Patients question suspicious charges with 1 click; hospital billing staff review and resolve queries in a shared team queue.
+              </p>
+            </div>
           </div>
 
-          {/* Stamping animation */}
+          {/* Mini Interactive Ticket Mock */}
           <motion.div
-            initial={{ scale: 2, opacity: 0, rotate: -20 }}
-            animate={{ scale: 1, opacity: 1, rotate: -5 }}
-            transition={{ delay: 0.5, type: 'spring', stiffness: 200 }}
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-4 border-moss text-moss px-4 py-1 text-2xl font-mono font-bold uppercase tracking-widest z-20 whitespace-nowrap bg-paper/90 backdrop-blur-xs shadow-sm"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-paper text-ink rounded-lg p-4 shadow-xl border-t-4 border-pine relative space-y-3"
           >
-            Approved
+            <div className="flex justify-between items-center border-b border-rule pb-2">
+              <span className="text-[10px] font-mono text-ink-soft uppercase tracking-widest">
+                Real-Time Adjudication
+              </span>
+              <span className="text-[10px] font-mono bg-moss/10 text-moss px-2 py-0.5 rounded font-bold uppercase">
+                Audit Verified
+              </span>
+            </div>
+
+            <div className="text-xs font-mono space-y-1 text-ink-soft">
+              <div className="flex justify-between">
+                <span>Total Billed:</span>
+                <span className="font-bold text-ink">₹2,40,000</span>
+              </div>
+              <div className="flex justify-between text-vermilion">
+                <span>Flagged (Overpriced + Cosmetic):</span>
+                <span>- ₹24,000</span>
+              </div>
+              <div className="flex justify-between text-pine font-bold border-t border-rule pt-1 text-sm">
+                <span>Approved Payout (90%):</span>
+                <span>₹1,94,400</span>
+              </div>
+            </div>
           </motion.div>
 
-          <div className="mt-8 pt-4 border-t border-rule font-mono text-xs flex justify-between">
-            <span className="text-ink-soft">Payout</span>
-            <span className="font-bold text-pine-deep">₹2,16,000</span>
+          {/* Evaluator Flow */}
+          <div className="p-3 bg-bone/10 rounded-lg text-[11px] space-y-1 font-mono text-bone/80">
+            <div className="text-phosphor font-bold uppercase text-[10px]">Recommended Evaluation Path:</div>
+            <div>1. Sign in as Hospital ➔ New Claim ➔ Run Agent</div>
+            <div>2. Review terminal reasoning & line-item flags</div>
+            <div>3. Sign in as Patient ➔ Review bill & raise dispute</div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

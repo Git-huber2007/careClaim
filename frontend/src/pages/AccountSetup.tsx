@@ -64,11 +64,19 @@ export function AccountSetup() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <form onSubmit={handleSubmit} className="w-full max-w-lg bg-paper p-8 rounded-lg border border-rule space-y-6">
+    <div className="min-h-screen flex items-center justify-center p-6 bg-paper">
+      <form onSubmit={handleSubmit} className="w-full max-w-lg bg-paper p-8 rounded-lg border border-rule space-y-6 shadow-xs">
         <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-mono uppercase bg-pine/10 text-pine-deep font-bold px-2 py-0.5 rounded border border-pine/20">
+              Step 2 of 3 · Role Onboarding
+            </span>
+            <span className="text-xs font-mono text-ink-soft">CareClaim AI</span>
+          </div>
           <h1 className="text-3xl font-serif text-pine-deep">Set up your account</h1>
-          <p className="text-sm text-ink-soft mt-1">Choose how you will use CareClaim. This role is permanent.</p>
+          <p className="text-sm text-ink-soft mt-1">
+            CareClaim enforces strict data separation. Choose your operational persona (this choice is permanent):
+          </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -78,18 +86,47 @@ export function AccountSetup() {
               type="button"
               aria-pressed={role === r.role}
               onClick={() => setRole(r.role)}
-              className={`text-left p-4 rounded border transition-colors ${role === r.role ? 'border-pine bg-pine/5 ring-1 ring-pine' : 'border-rule bg-bone hover:border-ink-soft/50'}`}
+              className={`text-left p-4 rounded-lg border transition-all cursor-pointer ${
+                role === r.role
+                  ? 'border-pine bg-pine/5 ring-1 ring-pine shadow-xs'
+                  : 'border-rule bg-bone hover:border-ink-soft/50'
+              }`}
             >
-              <div className="font-medium text-pine-deep">{r.title}</div>
-              <div className="text-xs text-ink-soft mt-1">{r.text}</div>
+              <div className="font-bold text-pine-deep flex items-center justify-between">
+                <span>{r.title}</span>
+                {role === r.role && <span className="text-pine text-xs">✓ Active</span>}
+              </div>
+              <div className="text-xs text-ink-soft mt-1 leading-relaxed">{r.text}</div>
             </button>
           ))}
         </div>
 
         {role === 'HOSPITAL' && (
-          <div className="space-y-4 pt-1 border-t border-rule">
+          <div className="space-y-4 pt-2 border-t border-rule">
+            {/* Quick Fill Preset for Judges */}
+            <div className="bg-bone border border-pine/30 rounded-lg p-3 space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-mono font-bold text-pine-deep flex items-center gap-1">
+                  <span>⚡</span> Judge Quick Fill
+                </span>
+                <span className="text-[10px] text-ink-soft font-mono">1-Click Test Preset</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setHospitalOrg('Apollo Hospitals');
+                  setAccessCode('CARECLAIM-HOSPITAL-2026');
+                  toast.success('Filled Apollo Hospitals & demo access code.');
+                }}
+                className="w-full bg-paper hover:bg-pine/5 border border-rule hover:border-pine py-1.5 px-3 rounded text-xs text-pine-deep font-medium transition-all text-left flex items-center justify-between cursor-pointer"
+              >
+                <span>Apollo Hospitals + Demo Code</span>
+                <span className="font-mono text-[10px] text-pine font-bold">Fill Now →</span>
+              </button>
+            </div>
+
             <div>
-              <label htmlFor="setup-hospital-org" className="block text-xs font-mono uppercase text-ink-soft mb-1">
+              <label htmlFor="setup-hospital-org" className="block text-xs font-mono uppercase text-ink-soft mb-1 font-semibold">
                 Hospital / Organization Queue
               </label>
               <select
@@ -105,13 +142,13 @@ export function AccountSetup() {
                 <option value="OTHER">Other / Custom Organization…</option>
               </select>
               <p className="text-xs text-ink-soft mt-1">
-                Colleagues in the same organization share claim queues and dispute reviews.
+                Colleagues in the same organization share intake queues and dispute reviews.
               </p>
             </div>
 
             {hospitalOrg === 'OTHER' && (
               <div>
-                <label htmlFor="setup-custom-org" className="block text-xs font-mono uppercase text-ink-soft mb-1">
+                <label htmlFor="setup-custom-org" className="block text-xs font-mono uppercase text-ink-soft mb-1 font-semibold">
                   Custom Organization Name
                 </label>
                 <input
@@ -127,22 +164,29 @@ export function AccountSetup() {
 
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label htmlFor="setup-access-code" className="text-xs font-mono uppercase text-ink-soft">
+                <label htmlFor="setup-access-code" className="text-xs font-mono uppercase text-ink-soft font-semibold">
                   Hospital Staff Access Code {codeRequired && <span className="text-vermilion">*</span>}
                 </label>
-                <span className="text-[11px] font-mono text-pine-deep bg-pine/10 px-1.5 py-0.5 rounded">
-                  Demo: CARECLAIM-HOSPITAL-2026
-                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccessCode('CARECLAIM-HOSPITAL-2026');
+                    toast.info('Copied demo access code into field.');
+                  }}
+                  className="text-[11px] font-mono text-pine-deep bg-pine/10 hover:bg-pine/20 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                >
+                  Paste Demo: CARECLAIM-HOSPITAL-2026
+                </button>
               </div>
               <input
                 id="setup-access-code"
                 required={codeRequired}
-                type="password"
+                type="text"
                 autoComplete="off"
                 value={accessCode}
                 onChange={e => setAccessCode(e.target.value)}
-                placeholder="Enter hospital verification code"
-                className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm font-mono"
+                placeholder="CARECLAIM-HOSPITAL-2026"
+                className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm font-mono tracking-wider"
               />
               <p className="text-xs text-ink-soft mt-1">
                 Authorized staff code prevents unverified users from claiming hospital roles.
@@ -152,29 +196,66 @@ export function AccountSetup() {
         )}
 
         {role === 'PATIENT' && (
-          <div className="space-y-4 pt-1 border-t border-rule">
+          <div className="space-y-4 pt-2 border-t border-rule">
+            {/* Quick Fill Presets for Judges */}
+            <div className="bg-bone border border-pine/30 rounded-lg p-3 space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-mono font-bold text-pine-deep flex items-center gap-1">
+                  <span>⚡</span> Judge Quick Fill Presets
+                </span>
+                <span className="text-[10px] text-ink-soft font-mono">Pre-Seeded Policies</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPolicyNumber('STAR-402-GOLD');
+                    setPatientId('PAT-1001');
+                    toast.success('Filled STAR-402-GOLD (PAT-1001).');
+                  }}
+                  className="bg-paper hover:bg-pine/5 border border-rule hover:border-pine p-2 rounded text-left transition-all cursor-pointer"
+                >
+                  <div className="font-mono font-bold text-pine-deep text-xs">STAR-402-GOLD</div>
+                  <div className="text-[10px] text-ink-soft mt-0.5">PAT-1001 · Appendectomy</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPolicyNumber('HDFC-118-SILVER');
+                    setPatientId('PAT-1002');
+                    toast.success('Filled HDFC-118-SILVER (PAT-1002).');
+                  }}
+                  className="bg-paper hover:bg-pine/5 border border-rule hover:border-pine p-2 rounded text-left transition-all cursor-pointer"
+                >
+                  <div className="font-mono font-bold text-pine-deep text-xs">HDFC-118-SILVER</div>
+                  <div className="text-[10px] text-ink-soft mt-0.5">PAT-1002 · Pneumonia</div>
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="setup-policy-number" className="block text-xs font-mono uppercase text-ink-soft mb-1">Policy Number</label>
+                <label htmlFor="setup-policy-number" className="block text-xs font-mono uppercase text-ink-soft mb-1 font-semibold">Policy Number</label>
                 <input id="setup-policy-number" required value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} placeholder="STAR-402-GOLD" className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm font-mono" />
               </div>
               <div>
-                <label htmlFor="setup-patient-id" className="block text-xs font-mono uppercase text-ink-soft mb-1">Patient ID</label>
+                <label htmlFor="setup-patient-id" className="block text-xs font-mono uppercase text-ink-soft mb-1 font-semibold">Patient ID</label>
                 <input id="setup-patient-id" required value={patientId} onChange={e => setPatientId(e.target.value)} placeholder="PAT-1001" className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm font-mono" />
               </div>
             </div>
             <p className="text-xs text-ink-soft">
-              Both are printed on your insurance card. To prevent account takeover, the email you registered with must match your policyholder records.
+              Both are printed on your insurance card. To prevent account takeover, the email you registered with is bound to this policy.
             </p>
           </div>
         )}
 
         <div className="flex items-center justify-between pt-2 border-t border-rule">
-          <button type="button" onClick={() => supabase.auth.signOut().then(() => navigate('/login', { replace: true }))} className="text-sm text-ink-soft hover:underline">
+          <button type="button" onClick={() => supabase.auth.signOut().then(() => navigate('/login', { replace: true }))} className="text-sm text-ink-soft hover:underline cursor-pointer">
             Sign out
           </button>
-          <button type="submit" disabled={!role || submitting} className="bg-pine hover:bg-pine-deep text-bone rounded px-5 py-2 text-sm font-medium transition-colors disabled:opacity-50">
-            {submitting ? 'Saving...' : 'Continue'}
+          <button type="submit" disabled={!role || submitting} className="bg-pine hover:bg-pine-deep text-bone rounded px-5 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer font-mono uppercase tracking-wider">
+            {submitting ? 'Saving Role...' : 'Complete Setup & Enter →'}
           </button>
         </div>
       </form>
