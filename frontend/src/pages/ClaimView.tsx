@@ -55,7 +55,7 @@ function ClaimDetail({ id }: { id: string }) {
   // A run this tab is not streaming (the stream dropped, or it was started
   // before this page opened) still finishes and saves on the backend, so wait
   // for its verdict instead of offering to run the claim a second time.
-  const adjudicating = Boolean(claim?.adjudicating);
+  const adjudicating = Boolean(claim?.adjudicating) || claim?.status === 'PROCESSING';
   useEffect(() => {
     if (!adjudicating || streaming) return;
     // Each poll waits for the one before it, so slow responses cannot pile up
@@ -146,7 +146,7 @@ function ClaimDetail({ id }: { id: string }) {
   if (!claim) {
     if (!loadError) return <div className="p-10 text-center font-mono">Loading...</div>;
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="min-h-[60vh] flex items-center justify-center p-6">
         <div className="w-full max-w-md bg-paper p-8 rounded-lg border border-rule text-center space-y-4 shadow-sm">
           <div className="font-serif text-2xl text-pine-deep">Unable to load this claim</div>
           <div className="text-sm text-vermilion font-mono bg-vermilion/5 border border-vermilion/20 p-3 rounded">{loadError}</div>
@@ -169,9 +169,9 @@ function ClaimDetail({ id }: { id: string }) {
   const flagByLine = new Map(flagged.map(l => [l.line, l]));
   const disputes: Dispute[] = claim.disputes ?? [];
   const disputedLines = new Set(disputes.map(d => d.line_number));
-  const decided = claim.status !== 'PENDING';
+  const decided = claim.status !== 'PENDING' && claim.status !== 'PROCESSING';
   // A patient can open a claim the hospital filed for them, but only the hospital can run it.
-  const canRun = !decided && (!isPatient || claim.source === 'PATIENT');
+  const canRun = claim.status === 'PENDING' && !busy && (!isPatient || claim.source === 'PATIENT');
   // A bill the patient entered themselves has no hospital account behind it to answer.
   const canDispute = isPatient && claim.source === 'HOSPITAL';
   const payoutNote = !decided
@@ -179,7 +179,7 @@ function ClaimDetail({ id }: { id: string }) {
     : isPatient ? `You pay ${formatCurrency(patientPayable(claim))}` : '';
 
   return (
-    <div className="min-h-screen p-6 md:p-10 max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <div className="p-6 md:p-10 max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
       {/* Left: Bill Details */}
       <div className="lg:col-span-3 space-y-6">
         <div className="bg-paper p-6 rounded-lg border border-rule">

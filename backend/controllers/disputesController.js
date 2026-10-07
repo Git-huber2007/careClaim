@@ -48,18 +48,34 @@ export async function createDispute(req, res) {
 export async function listDisputes(req, res) {
   let query = supabaseAdmin
     .from('disputes')
-    .select(`${DISPUTE_COLUMNS}, claims!inner(patient_id, diagnosis_code, hospital_user_id)`);
+    .select(`${DISPUTE_COLUMNS}, claims!inner(patient_id, diagnosis_code, hospital_user_id, hospital_org)`);
 
-  query =
-    req.profile.role === 'PATIENT'
-      ? query.eq('patient_user_id', req.user.id)
-      : query.eq('claims.hospital_user_id', req.user.id);
+  if (req.profile.role === 'PATIENT') {
+    query = query.eq('patient_user_id', req.user.id);
+  } else if (req.profile?.hospital_org) {
+    query = query.or(`claims.hospital_org.eq.${req.profile.hospital_org},claims.hospital_user_id.eq.${req.user.id}`);
+  } else {
+    query = query.eq('claims.hospital_user_id', req.user.id);
+  }
 
-  const { data, error } = await query.order('created_at', { ascending: false });
+  let { data, error } = await query.order('created_at', { ascending: false });
+
+  // Fallback if hospital_org column has not been added to claims schema yet
+  if (error && error.code === '42703') {
+    const fallbackQuery = supabaseAdmin
+      .from('disputes')
+      .select(`${DISPUTE_COLUMNS}, claims!inner(patient_id, diagnosis_code, hospital_user_id)`);
+    const q = req.profile.role === 'PATIENT'
+      ? fallbackQuery.eq('patient_user_id', req.user.id)
+      : fallbackQuery.eq('claims.hospital_user_id', req.user.id);
+    const retry = await q.order('created_at', { ascending: false });
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) throw new HttpError(500, `Database error: ${error.message}`);
   res.json({
-    disputes: data.map(({ claims, ...d }) => ({ ...d, patient_id: claims.patient_id, diagnosis_code: claims.diagnosis_code })),
+    disputes: (data || []).map(({ claims, ...d }) => ({ ...d, patient_id: claims.patient_id, diagnosis_code: claims.diagnosis_code })),
   });
 }
 
@@ -68,14 +84,30 @@ export async function respondToDispute(req, res) {
   const { id } = uuidParamSchema.parse(req.params);
   const body = disputeResponseSchema.parse(req.body);
 
-  const { data: dispute, error: findErr } = await supabaseAdmin
+  let { data: dispute, error: findErr } = await supabaseAdmin
     .from('disputes')
-    .select('id, status, claims!inner(hospital_user_id)')
+    .select('id, status, claims!inner(hospital_user_id, hospital_org)')
     .eq('id', id)
     .maybeSingle();
 
+  if (findErr && findErr.code === '42703') {
+    const retry = await supabaseAdmin
+      .from('disputes')
+      .select('id, status, claims!inner(hospital_user_id)')
+      .eq('id', id)
+      .maybeSingle();
+    dispute = retry.data;
+    findErr = retry.error;
+  }
+
   if (findErr) throw new HttpError(500, `Database error: ${findErr.message}`);
-  if (!dispute || dispute.claims.hospital_user_id !== req.user.id) throw new HttpError(404, 'Dispute not found.');
+  if (!dispute) throw new HttpError(404, 'Dispute not found.');
+
+  const isAuthor = dispute.claims.hospital_user_id === req.user.id;
+  const isOrgMember = req.profile?.hospital_org && dispute.claims.hospital_org === req.profile.hospital_org;
+  if (!isAuthor && !isOrgMember) {
+    throw new HttpError(404, 'Dispute not found.');
+  }
   if (dispute.status !== 'OPEN') throw new HttpError(409, 'This dispute has already been answered.');
 
   const { data, error } = await supabaseAdmin

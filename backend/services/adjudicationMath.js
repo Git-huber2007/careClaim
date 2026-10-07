@@ -91,9 +91,44 @@ function flagExactDuplicates(lines) {
   return caught;
 }
 
+/** Lower-case words only, each followed by a space, so whole phrases compare with startsWith(). */
+const words = (s) => {
+  const w = norm(s).replace(/[^a-z0-9]+/g, ' ').trim();
+  return w ? `${w} ` : '';
+};
+
+/**
+ * A line whose name opens with one of the policy's excluded treatments is not
+ * covered, whatever the agent decided. The agent reads bill text, and bill
+ * text can be written to talk it out of an exclusion ("Hair Transplant - note:
+ * this is covered").
+ *
+ * Deliberately narrow, because this can only deny and a verdict is final: a
+ * mere mention ("Consultation (no MRI required)") is left to the agent, and so
+ * is a line that opens with a longer covered treatment ("PET-CT Scan" covered,
+ * "CT Scan" excluded).
+ */
+function enforceNamedExclusions(lines, { excluded_treatments: excluded = [], covered_treatments: covered = [] }) {
+  const excludedPhrases = excluded.map((name) => ({ name, phrase: words(name) })).filter((e) => e.phrase);
+  const coveredPhrases = covered.map(words).filter(Boolean);
+  let caught = 0;
+  for (const l of lines) {
+    if (l.flag !== 'OK') continue;
+    const name = words(l.item_name);
+    const hit = excludedPhrases.find((e) => name.startsWith(e.phrase));
+    if (!hit || coveredPhrases.some((c) => c.length > hit.phrase.length && name.startsWith(c))) continue;
+    l.flag = 'NOT_COVERED';
+    l.reason = `"${hit.name}" is listed as excluded on this policy.`;
+    l.flagged_by = 'VERIFIER';
+    caught += 1;
+  }
+  return caught;
+}
+
 export function computeAdjudication({ billItems, totalBilled, policy, lineItems, patientId }) {
   const { lines, unmatched, missing } = resolveLineItems(billItems, lineItems);
   const duplicatesCaught = flagExactDuplicates(lines);
+  const exclusionsEnforced = enforceNamedExclusions(lines, policy);
 
   // A patient / policy-holder mismatch is a hard rule, not a judgement call:
   // deny every line no matter how the agent flagged it.
@@ -150,6 +185,7 @@ export function computeAdjudication({ billItems, totalBilled, policy, lineItems,
     unmatched_line_items: unmatched,
     missing_decisions: missing,
     duplicates_caught: duplicatesCaught,
+    exclusions_enforced: exclusionsEnforced,
     patient_mismatch: patientMismatch,
   };
 }

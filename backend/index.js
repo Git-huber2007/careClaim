@@ -23,8 +23,12 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json({ limit: '15mb' }));
-app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+// Bodies are small JSON everywhere except the bill scan, whose route parses
+// its own larger body only after the caller is authenticated (routes/claims.js).
+// 1 MB holds the largest claim the validation accepts (200 lines of 200 characters).
+const json = express.json({ limit: '1mb' });
+const isBillScan = (req) => req.path.replace(/\/+$/, '').toLowerCase() === '/api/claims/extract-bill';
+app.use((req, res, next) => (isBillScan(req) ? next() : json(req, res, next)));
 
 app.get('/api/health', (_req, res) => {
   let supabaseHost = null;
@@ -54,5 +58,8 @@ app.listen(config.port, () => {
   console.log(`  Model: ${config.geminiModel}`);
   if (missingEnv.length) {
     console.warn(`  ⚠ Missing env vars: ${missingEnv.join(', ')} (set them in backend/.env)\n`);
+  }
+  if (config.supabaseUrlFromKey) {
+    console.warn(`  ⚠ SUPABASE_URL is not a usable API URL; using ${config.supabaseUrl}, the project the service key belongs to.\n`);
   }
 });

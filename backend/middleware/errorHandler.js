@@ -19,7 +19,8 @@ export function errorHandler(err, _req, res, _next) {
   }
 
   if (err?.type === 'entity.too.large') {
-    return res.status(413).json({ error: `The request is too large (limit ${Math.floor(err.limit / 1048576)} MB).` });
+    const limit = err.limit >= 1048576 ? `${Math.floor(err.limit / 1048576)} MB` : `${Math.floor(err.limit / 1024)} KB`;
+    return res.status(413).json({ error: `The request is too large (limit ${limit}).` });
   }
 
   const status = err instanceof HttpError ? err.status : 500;

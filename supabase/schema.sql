@@ -13,15 +13,18 @@ CREATE TABLE IF NOT EXISTS policies (
     copay_percentage DECIMAL(5, 2) NOT NULL,
     covered_treatments TEXT[] NOT NULL,
     excluded_treatments TEXT[] NOT NULL,
+    holder_email VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Profiles Table: one row per login, fixing the account's role.
 -- A PATIENT profile is linked to the patient_id on their policy.
+-- A HOSPITAL profile belongs to a hospital_org (shared queue).
 CREATE TABLE IF NOT EXISTS profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     role VARCHAR(20) NOT NULL, -- HOSPITAL, PATIENT
     patient_id VARCHAR(255),
+    hospital_org VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT profiles_role_check CHECK (role IN ('HOSPITAL', 'PATIENT')),
     CONSTRAINT profiles_patient_link_check CHECK ((role = 'PATIENT') = (patient_id IS NOT NULL))
@@ -31,29 +34,49 @@ CREATE TABLE IF NOT EXISTS profiles (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_patient_id ON profiles(patient_id) WHERE patient_id IS NOT NULL;
 
 -- Claims Table
--- source = HOSPITAL: filed by hospital staff (hospital_user_id).
+-- source = HOSPITAL: filed by hospital staff (hospital_user_id) for hospital_org queue.
 -- source = PATIENT:  a bill the patient checks themselves (patient_user_id).
 CREATE TABLE IF NOT EXISTS claims (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     hospital_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     patient_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     source VARCHAR(20) NOT NULL DEFAULT 'HOSPITAL',
+    hospital_org VARCHAR(255),
     policy_id UUID NOT NULL REFERENCES policies(id),
     patient_id VARCHAR(255) NOT NULL,
     diagnosis_code VARCHAR(100),
     raw_bill_data JSONB NOT NULL,
     total_billed DECIMAL(10, 2) NOT NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'PENDING', -- PENDING, APPROVED, PARTIAL, DENIED
-    approved_amount DECIMAL(10, 2) DEFAULT 0.00,
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING', -- PENDING, PROCESSING, APPROVED, PARTIAL, DENIED
+    approved_amount DECIMAL(10, 2), -- NULL until adjudicated; 0 is a real verdict (denied)
     ai_reasoning_log JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT claims_status_check CHECK (status IN ('PENDING', 'APPROVED', 'PARTIAL', 'DENIED'))
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT claims_status_check CHECK (status IN ('PENDING', 'PROCESSING', 'APPROVED', 'PARTIAL', 'DENIED'))
 );
 
 -- Upgrade a claims table created by an earlier version of this file.
 ALTER TABLE claims ADD COLUMN IF NOT EXISTS patient_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE claims ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'HOSPITAL';
 ALTER TABLE claims ALTER COLUMN hospital_user_id DROP NOT NULL;
+
+-- Upgrades for shared hospital queues, account protection, and persistent PROCESSING locks
+ALTER TABLE policies ADD COLUMN IF NOT EXISTS holder_email VARCHAR(255);
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS hospital_org VARCHAR(255);
+ALTER TABLE claims ADD COLUMN IF NOT EXISTS hospital_org VARCHAR(255);
+ALTER TABLE claims ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+-- Status check allowing atomic PROCESSING lock across multiple instances and restarts
+ALTER TABLE claims DROP CONSTRAINT IF EXISTS claims_status_check;
+ALTER TABLE claims ADD CONSTRAINT claims_status_check CHECK (status IN ('PENDING', 'PROCESSING', 'APPROVED', 'PARTIAL', 'DENIED'));
+
+-- Backfill default organization for historical hospital accounts and claims
+UPDATE profiles SET hospital_org = 'CareClaim General Hospital' WHERE role = 'HOSPITAL' AND hospital_org IS NULL;
+UPDATE claims SET hospital_org = 'CareClaim General Hospital' WHERE source = 'HOSPITAL' AND hospital_org IS NULL;
+
+-- "No verdict yet" used to be stored as 0, the same as a denied claim.
+ALTER TABLE claims ALTER COLUMN approved_amount DROP DEFAULT;
+UPDATE claims SET approved_amount = NULL WHERE status = 'PENDING';
 
 ALTER TABLE claims DROP CONSTRAINT IF EXISTS claims_source_check;
 ALTER TABLE claims ADD CONSTRAINT claims_source_check CHECK (source IN ('HOSPITAL', 'PATIENT'));
@@ -97,9 +120,12 @@ CREATE TABLE IF NOT EXISTS reference_prices (
 );
 
 CREATE INDEX IF NOT EXISTS idx_claims_hospital_user_id ON claims(hospital_user_id);
+CREATE INDEX IF NOT EXISTS idx_claims_hospital_org ON claims(hospital_org);
 CREATE INDEX IF NOT EXISTS idx_claims_patient_id ON claims(patient_id);
 CREATE INDEX IF NOT EXISTS idx_claims_created_at ON claims(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_profiles_hospital_org ON profiles(hospital_org);
 CREATE INDEX IF NOT EXISTS idx_policies_patient_id ON policies(patient_id);
+CREATE INDEX IF NOT EXISTS idx_policies_holder_email ON policies(holder_email);
 CREATE INDEX IF NOT EXISTS idx_disputes_claim_id ON disputes(claim_id);
 CREATE INDEX IF NOT EXISTS idx_disputes_patient_user_id ON disputes(patient_user_id);
 

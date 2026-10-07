@@ -3,40 +3,64 @@ import { FLAGS } from '../services/adjudicationMath.js';
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
+const MAX_AMOUNT = 99_999_999.99; // DECIMAL(10, 2)
+
+/**
+ * Text copied from a bill. It is stored, shown on screen and placed inside the
+ * model prompt, so it is one bounded line with no control characters.
+ */
+const billText = (max) =>
+  z
+    .string()
+    .trim()
+    .min(1)
+    .max(max)
+    .regex(/^[^\u0000-\u001f\u007f]*$/, 'Must be a single line of plain text');
+
 /** Spec-mandated schema for claim submission. */
 export const claimSubmissionSchema = z
   .object({
-    patient_id: z.string().trim().min(1),
+    patient_id: billText(255), // VARCHAR(255)
     policy_id: z.string().uuid(),
-    diagnosis_code: z.string().trim().min(1),
+    diagnosis_code: billText(100), // VARCHAR(100)
     raw_bill_data: z
       .array(
         z.object({
-          item_name: z.string().trim().min(1),
-          cost: z.number().positive(),
+          item_name: billText(200),
+          cost: z.number().positive().max(MAX_AMOUNT),
         })
       )
-      .min(1, 'Bill must contain at least one line item'),
-    total_billed: z.number().positive().max(99_999_999.99, 'total_billed exceeds the supported maximum'), // DECIMAL(10, 2)
+      .min(1, 'Bill must contain at least one line item')
+      .max(200, 'A bill can have at most 200 line items'),
+    total_billed: z.number().positive().max(MAX_AMOUNT, 'total_billed exceeds the supported maximum'),
   })
   .refine(
     (d) => Math.abs(round2(d.raw_bill_data.reduce((s, i) => s + i.cost, 0)) - round2(d.total_billed)) < 0.01,
     { message: 'total_billed must equal the sum of all line item costs', path: ['total_billed'] }
   );
 
-export const uuidParamSchema = z.object({ id: z.string().uuid() });
+// Lower-cased, so the ID compares equal to the one the database returns.
+export const uuidParamSchema = z.object({ id: z.string().uuid().toLowerCase() });
 
-/** Account setup: a patient must name the policy they hold. */
+const policyNumber = z
+  .string()
+  .trim()
+  .min(1, 'Policy number is required')
+  .max(255)
+  .regex(/^[A-Za-z0-9 ._/-]+$/, 'Policy number contains unsupported characters');
+
+/** A hospital looks a policy up by the number on the patient's card. */
+export const policyLookupSchema = z.object({ policy_number: policyNumber.optional() });
+
 export const profileSchema = z.discriminatedUnion('role', [
-  z.object({ role: z.literal('HOSPITAL') }),
+  z.object({
+    role: z.literal('HOSPITAL'),
+    hospital_org: z.string().trim().max(255).optional(),
+    access_code: z.string().trim().max(200).optional(),
+  }),
   z.object({
     role: z.literal('PATIENT'),
-    policy_number: z
-      .string()
-      .trim()
-      .min(1, 'Policy number is required')
-      .max(255)
-      .regex(/^[A-Za-z0-9 ._/-]+$/, 'Policy number contains unsupported characters'),
+    policy_number: policyNumber,
     patient_id: z.string().trim().min(1, 'Patient ID is required').max(255),
   }),
 ]);
@@ -68,6 +92,9 @@ export const adjudicationResultSchema = z.object({
 
 export const billExtractionSchema = z.object({
   fileBase64: z.string().min(1, 'File base64 data is required'),
-  mimeType: z.enum(['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/jpg']),
+  mimeType: z
+    .enum(['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/jpg'])
+    // Some browsers report image/jpg, which is not a registered type and the model rejects.
+    .transform((type) => (type === 'image/jpg' ? 'image/jpeg' : type)),
 });
 

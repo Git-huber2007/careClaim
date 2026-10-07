@@ -1,5 +1,4 @@
 import { supabaseAdmin } from '../services/supabase.js';
-import { config } from '../config.js';
 import { HttpError } from '../utils/http.js';
 
 /**
@@ -12,49 +11,25 @@ export async function requireAuth(req, _res, next) {
       throw new HttpError(503, 'Supabase is not configured on the server.');
     }
 
+    // Only the header: a token in the URL would end up in access logs.
     const header = req.headers.authorization || '';
-    let token = '';
-    if (header.startsWith('Bearer ')) {
-      token = header.slice(7).trim();
-    } else if (req.query?.token) {
-      token = String(req.query.token).trim();
-    }
+    const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+    if (!token) throw new HttpError(401, 'Missing or malformed Authorization header.');
 
-    if (!token) {
-      throw new HttpError(401, 'Missing or malformed Authorization header or token query parameter.');
-    }
-
-    let user = null;
     const { data, error } = await supabaseAdmin.auth.getUser(token);
-    if (data?.user) {
-      user = data.user;
-    } else {
-      // Direct verification fallback via Supabase auth API endpoint
-      try {
-        const directRes = await fetch(`${config.supabaseUrl}/auth/v1/user`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'apikey': config.supabaseServiceRoleKey,
-          },
-        });
-        if (directRes.ok) {
-          const directData = await directRes.json();
-          if (directData?.id) {
-            user = directData;
-          }
-        }
-      } catch (fallbackErr) {
-        console.error('[auth] Direct token verification failed:', fallbackErr?.message || fallbackErr);
+    if (error || !data?.user) {
+      // Supabase refusing the token means the session is bad. Supabase not
+      // answering, or rate-limiting us, is our outage and must not read as
+      // "your session expired": the client would sign a valid user out.
+      if (error && (!error.status || error.status >= 500 || error.status === 429)) {
+        console.error('[auth] Token verification unavailable:', error.message);
+        throw new HttpError(503, 'Sign-in could not be verified right now. Please try again in a moment.');
       }
+      if (error) console.warn('[auth] Token rejected:', error.message);
+      throw new HttpError(401, 'Invalid or expired session token.');
     }
 
-    if (!user) {
-      const detail = error?.message || 'Invalid or expired session token.';
-      console.warn('[auth] Authentication failed:', detail);
-      throw new HttpError(401, `Invalid or expired session token (${detail})`);
-    }
-
-    req.user = { id: user.id, email: user.email };
+    req.user = { id: data.user.id, email: data.user.email };
     next();
   } catch (err) {
     next(err);
@@ -63,11 +38,22 @@ export async function requireAuth(req, _res, next) {
 
 /** Reads the caller's profile row; null until they finish account setup. */
 export async function loadProfile(userId) {
-  const { data, error } = await supabaseAdmin
+  let { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('id, role, patient_id, created_at')
+    .select('id, role, patient_id, hospital_org, created_at')
     .eq('id', userId)
     .maybeSingle();
+
+  // If hospital_org column does not exist yet (code 42703), retry without it
+  if (error && error.code === '42703') {
+    const retry = await supabaseAdmin
+      .from('profiles')
+      .select('id, role, patient_id, created_at')
+      .eq('id', userId)
+      .maybeSingle();
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) {
     // 42P01 / PGRST205: the profiles table is missing, i.e. the schema predates roles.

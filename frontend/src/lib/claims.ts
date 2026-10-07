@@ -50,7 +50,7 @@ export function flaggedLines(log: any): LineDecision[] {
  * amount is only the column default of 0, which would read as a full denial.
  */
 export function approvedDisplay(claim: any) {
-  return claim.status === 'PENDING' ? '—' : formatCurrency(claim.approved_amount);
+  return claim.status === 'PENDING' || claim.status === 'PROCESSING' ? '—' : formatCurrency(claim.approved_amount);
 }
 
 /** What the patient still owes on an adjudicated claim. */

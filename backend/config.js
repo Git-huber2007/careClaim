@@ -1,32 +1,59 @@
 import 'dotenv/config';
 
-const clean = (val) => (typeof val === 'string' ? val.trim().replace(/^["']|["']$/g, '') : val);
+const clean = (val) => (typeof val === 'string' ? val.trim().replace(/^["']|["']$/g, '').trim() : val);
 const isPlaceholder = (v) => !v || /^your_/i.test(v);
+const env = (key) => clean(process.env[key]);
 
-const REQUIRED = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'GEMINI_API_KEY'];
+/**
+ * A usable API base: any http(s) URL except supabase.com itself, which is the
+ * website and dashboard, and an easy thing to paste here by mistake.
+ */
+function apiUrl(value) {
+  if (isPlaceholder(value)) return null;
+  try {
+    const url = new URL(value);
+    if (!/^https?:$/.test(url.protocol) || /(^|\.)supabase\.com$/i.test(url.hostname)) return null;
+    return value.replace(/\/+$/, '');
+  } catch {
+    return null;
+  }
+}
 
-const rawSupabaseUrl = clean(process.env.SUPABASE_URL)?.replace(/\/+$/, '');
-// If configured with the marketing website 'supabase.com' or missing the project domain, correct to the project endpoint
-const isInvalidUrl =
-  !rawSupabaseUrl ||
-  rawSupabaseUrl.includes('supabase.com') ||
-  !rawSupabaseUrl.includes('.supabase.co') ||
-  isPlaceholder(rawSupabaseUrl);
+/** A Supabase key is a JWT that names its project, so the project's API URL can be rebuilt from it. */
+function projectUrlFromKey(key) {
+  try {
+    const { ref } = JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString());
+    return ref ? `https://${ref}.supabase.co` : null;
+  } catch {
+    return null;
+  }
+}
 
-const resolvedSupabaseUrl = isInvalidUrl
-  ? 'https://wbhxxqtrhujrukdbeyur.supabase.co'
-  : rawSupabaseUrl;
-
-export const missingEnv = REQUIRED.filter((k) => isPlaceholder(process.env[k]));
+const supabaseServiceRoleKey = env('SUPABASE_SERVICE_ROLE_KEY');
+const configuredUrl = apiUrl(env('SUPABASE_URL'));
+// With an unusable SUPABASE_URL, fall back to the project the service key belongs to.
+const supabaseUrl = configuredUrl ?? (isPlaceholder(supabaseServiceRoleKey) ? null : projectUrlFromKey(supabaseServiceRoleKey));
 
 export const config = {
   port: Number(process.env.PORT) || 5000,
-  supabaseUrl: resolvedSupabaseUrl,
-  supabaseServiceRoleKey: clean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-  geminiApiKey: clean(process.env.GEMINI_API_KEY),
-  geminiModel: clean(process.env.GEMINI_MODEL) || 'gemini-2.5-flash',
-  corsOrigins: (clean(process.env.CORS_ORIGIN) || 'http://localhost:5173')
+  supabaseUrl,
+  supabaseUrlFromKey: !configuredUrl && Boolean(supabaseUrl),
+  supabaseServiceRoleKey,
+  geminiApiKey: env('GEMINI_API_KEY'),
+  geminiModel: env('GEMINI_MODEL') || 'gemini-2.5-flash',
+  // Required for hospital accounts so arbitrary users cannot claim hospital status
+  hospitalAccessCode: env('HOSPITAL_ACCESS_CODE') || 'CARECLAIM-HOSPITAL-2026',
+  corsOrigins: (env('CORS_ORIGIN') || 'http://localhost:5173')
     .split(',')
     .map((s) => s.trim().replace(/\/+$/, '')) // browsers send Origin without a trailing slash
     .filter(Boolean),
 };
+
+const REQUIRED = {
+  SUPABASE_URL: config.supabaseUrl,
+  SUPABASE_SERVICE_ROLE_KEY: config.supabaseServiceRoleKey,
+  GEMINI_API_KEY: config.geminiApiKey,
+};
+
+/** Judged on the values the server will actually use, after cleaning. */
+export const missingEnv = Object.keys(REQUIRED).filter((k) => isPlaceholder(REQUIRED[k]));

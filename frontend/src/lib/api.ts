@@ -40,9 +40,12 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 /** The backend answers errors as { error: "message", details?: [{ path, message }] }. */
 export function errorMessage(body: any, status: number) {
   const message = typeof body?.error === 'string' ? body.error : body?.error?.message;
-  const detail = body?.details?.[0]?.message;
+  const first = body?.details?.[0];
   if (!message) return `API error ${status}`;
-  return detail ? `${message}: ${detail}` : message;
+  if (!first?.message) return message;
+  // "raw_bill_data.2.item_name" → "bill line 3": say which line, since the cause may be invisible.
+  const line = /^raw_bill_data\.(\d+)\./.exec(first.path ?? '');
+  return `${message}: ${first.message}${line ? ` (bill line ${Number(line[1]) + 1})` : ''}`;
 }
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {

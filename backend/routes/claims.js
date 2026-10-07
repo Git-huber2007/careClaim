@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { requireAuth, requireProfile, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/http.js';
 import {
@@ -23,7 +23,8 @@ export const claimsRouter = Router();
 claimsRouter.use(requireAuth, requireProfile);
 
 claimsRouter.post('/', asyncHandler(createClaim));
-claimsRouter.post('/extract-bill', asyncHandler(extractBill));
+// The scanned document arrives as base64 inside JSON; this is the only route that needs a large body.
+claimsRouter.post('/extract-bill', express.json({ limit: '15mb' }), asyncHandler(extractBill));
 claimsRouter.get('/', asyncHandler(listClaims));
 claimsRouter.get('/:id', asyncHandler(getClaim));
 claimsRouter.post('/:id/process', asyncHandler(processClaim));

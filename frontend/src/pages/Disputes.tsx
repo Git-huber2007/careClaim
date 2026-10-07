@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router';
 import { fetchApi } from '../lib/api';
 import { useAccount } from '../lib/account';
 import type { Dispute } from '../lib/claims';
@@ -41,17 +40,14 @@ export function Disputes() {
   const visible = byStatus(filter);
 
   return (
-    <div className="min-h-screen p-6 md:p-10 max-w-4xl mx-auto space-y-8">
-      <header className="flex justify-between items-end border-b border-rule pb-4">
-        <div>
-          <h1 className="text-3xl font-serif text-pine-deep">{isPatient ? 'My Disputes' : 'Disputes'}</h1>
-          <p className="text-sm text-ink-soft mt-1">
-            {isPatient
-              ? 'Charges you asked a hospital to explain, and what the hospital answered.'
-              : 'Bill lines patients have questioned on claims your account filed.'}
-          </p>
-        </div>
-        <Link to="/dashboard" className="text-sm text-pine font-medium hover:underline">Dashboard</Link>
+    <div className="p-6 md:p-10 max-w-4xl mx-auto space-y-8">
+      <header className="border-b border-rule pb-4">
+        <h1 className="text-3xl font-serif text-pine-deep">{isPatient ? 'My Disputes' : 'Disputes'}</h1>
+        <p className="text-sm text-ink-soft mt-1">
+          {isPatient
+            ? 'Charges you asked a hospital to explain, and what the hospital answered.'
+            : 'Bill lines patients have questioned on claims your account filed.'}
+        </p>
       </header>
 
       <div className="bg-paper rounded-lg border border-rule overflow-hidden">

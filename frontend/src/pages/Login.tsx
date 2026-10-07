@@ -11,19 +11,14 @@ type PortalRole = 'HOSPITAL' | 'PATIENT';
 export function Login() {
   const navigate = useNavigate();
   const [authMode, setAuthMode] = useState<AuthMode>('login');
-  const [portalRole, setPortalRole] = useState<PortalRole>(() => {
-    const saved = localStorage.getItem('careclaim_portal_role');
-    return saved === 'PATIENT' ? 'PATIENT' : 'HOSPITAL';
-  });
+  // Only tailors the hints on the registration form. The account's real role
+  // is chosen once on the setup screen and kept by the backend.
+  const [portalRole, setPortalRole] = useState<PortalRole>('HOSPITAL');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
-
-  const handleRoleSelect = (role: PortalRole) => {
-    setPortalRole(role);
-    localStorage.setItem('careclaim_portal_role', role);
-  };
+  const registering = authMode === 'register';
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +29,7 @@ export function Login() {
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/login`,
+        redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
       setResetSent(true);
@@ -61,19 +56,21 @@ export function Login() {
           toast.error('Unable to establish session. Please verify your email.');
           return;
         }
-        localStorage.setItem('careclaim_portal_role', portalRole);
-        toast.success(`Signed in as ${portalRole === 'HOSPITAL' ? 'Hospital Staff' : 'Patient'}`);
+        toast.success('Signed in');
       } else {
         const { error, data } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: {
-            data: { portal_role: portalRole },
-          },
         });
         if (error) throw error;
-        localStorage.setItem('careclaim_portal_role', portalRole);
 
+        // With email confirmation on, Supabase answers an already-registered
+        // address with a user that has no identities, and sends no email.
+        if (data.user && data.user.identities?.length === 0) {
+          toast.error('An account with this email already exists. Sign in, or reset your password.');
+          setAuthMode('login');
+          return;
+        }
         if (!data.session) {
           toast.success('Registration successful! Please check your email to confirm your account before signing in.');
           setAuthMode('login');
@@ -152,12 +149,13 @@ export function Login() {
               ) : (
                 <form onSubmit={handleResetPassword} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-mono uppercase tracking-wider text-ink-soft mb-1.5">
+                    <label htmlFor="reset-email" className="block text-xs font-mono uppercase tracking-wider text-ink-soft mb-1.5">
                       Account Email
                     </label>
                     <div className="relative">
                       <Mail size={16} className="absolute left-3 top-2.5 text-ink-soft pointer-events-none" />
                       <input
+                        id="reset-email"
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
@@ -181,15 +179,17 @@ export function Login() {
           ) : (
             /* Main Auth View */
             <div className="space-y-6">
-              {/* Role / Portal Selector */}
+              {/* Shown when registering only: an existing account already has its role. */}
+              {registering && (
               <div className="space-y-2">
-                <label className="block text-[11px] font-mono uppercase tracking-wider text-ink-soft font-semibold">
-                  Signing In As
-                </label>
+                <div className="block text-[11px] font-mono uppercase tracking-wider text-ink-soft font-semibold">
+                  Registering As
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => handleRoleSelect('HOSPITAL')}
+                    aria-pressed={portalRole === 'HOSPITAL'}
+                    onClick={() => setPortalRole('HOSPITAL')}
                     className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
                       portalRole === 'HOSPITAL'
                         ? 'border-pine bg-pine/5 shadow-sm ring-1 ring-pine'
@@ -209,7 +209,8 @@ export function Login() {
 
                   <button
                     type="button"
-                    onClick={() => handleRoleSelect('PATIENT')}
+                    aria-pressed={portalRole === 'PATIENT'}
+                    onClick={() => setPortalRole('PATIENT')}
                     className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
                       portalRole === 'PATIENT'
                         ? 'border-pine bg-pine/5 shadow-sm ring-1 ring-pine'
@@ -227,7 +228,9 @@ export function Login() {
                     </p>
                   </button>
                 </div>
+                <p className="text-[11px] text-ink-soft">You confirm this on the next screen, where the account type becomes permanent.</p>
               </div>
+              )}
 
               {/* High-Contrast Segmented Switcher (Sign In vs Register) */}
               <div className="bg-bone border border-rule p-1 rounded-lg grid grid-cols-2 text-xs font-mono uppercase tracking-wider font-semibold">
@@ -258,14 +261,16 @@ export function Login() {
               {/* Credentials Form */}
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-mono uppercase tracking-wider text-ink-soft mb-1">
-                    {portalRole === 'HOSPITAL' ? 'Hospital / Work Email' : 'Patient / Personal Email'}
+                  <label htmlFor="auth-email" className="block text-xs font-mono uppercase tracking-wider text-ink-soft mb-1">
+                    {!registering ? 'Email' : portalRole === 'HOSPITAL' ? 'Hospital / Work Email' : 'Patient / Personal Email'}
                   </label>
                   <input
+                    id="auth-email"
                     type="email"
+                    autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder={portalRole === 'HOSPITAL' ? 'doctor@hospital.org' : 'patient@gmail.com'}
+                    placeholder={registering && portalRole === 'PATIENT' ? 'patient@gmail.com' : 'doctor@hospital.org'}
                     className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm focus:outline-none focus:border-pine focus:ring-1 focus:ring-pine transition-all"
                     required
                   />
@@ -273,7 +278,7 @@ export function Login() {
 
                 <div>
                   <div className="flex justify-between items-center mb-1">
-                    <label className="text-xs font-mono uppercase tracking-wider text-ink-soft">
+                    <label htmlFor="auth-password" className="text-xs font-mono uppercase tracking-wider text-ink-soft">
                       Password
                     </label>
                     {authMode === 'login' && (
@@ -290,7 +295,9 @@ export function Login() {
                     )}
                   </div>
                   <input
+                    id="auth-password"
                     type="password"
+                    autoComplete={registering ? 'new-password' : 'current-password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
@@ -310,11 +317,7 @@ export function Login() {
                   disabled={loading}
                   className="w-full bg-pine hover:bg-pine-deep text-bone rounded py-2.5 text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer shadow-sm mt-2"
                 >
-                  {loading
-                    ? 'Processing...'
-                    : authMode === 'login'
-                    ? `Sign In to ${portalRole === 'HOSPITAL' ? 'Hospital' : 'Patient'} Portal`
-                    : `Create ${portalRole === 'HOSPITAL' ? 'Hospital' : 'Patient'} Account`}
+                  {loading ? 'Processing...' : registering ? 'Create Account' : 'Sign In'}
                 </button>
               </form>
             </div>
@@ -337,7 +340,7 @@ export function Login() {
               Claim Ticket #8091
             </span>
             <span className="text-[10px] font-mono bg-bone px-1.5 py-0.5 rounded text-pine font-bold uppercase">
-              {portalRole === 'HOSPITAL' ? 'Hospital View' : 'Patient View'}
+              {registering && portalRole === 'PATIENT' ? 'Patient View' : 'Hospital View'}
             </span>
           </div>
 

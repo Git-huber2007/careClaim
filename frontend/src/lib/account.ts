@@ -5,6 +5,7 @@ export interface Profile {
   id: string;
   role: 'HOSPITAL' | 'PATIENT';
   patient_id: string | null;
+  hospital_org?: string | null;
 }
 
 export const AccountContext = createContext<Profile | null>(null);

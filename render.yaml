@@ -19,3 +19,5 @@ services:
       # Your Vercel URL, e.g. https://careclaim.vercel.app (comma-separate several)
       - key: CORS_ORIGIN
         sync: false
+      # Optional: add HOSPITAL_ACCESS_CODE in the Render dashboard to require a
+      # code before an account can be set up as a hospital.
