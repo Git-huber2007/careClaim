@@ -1,65 +1,78 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router';
 import { API_BASE, errorMessage, fetchApi, getAccessToken } from '../lib/api';
 import { useAccount } from '../lib/account';
-import { flagLabel, flaggedLines, isSuspicious, toPayoutBreakdown, toTerminalEvents } from '../lib/claims';
+import { flagLabel, flaggedLines, isSuspicious, patientPayable, toPayoutBreakdown, toTerminalEvents } from '../lib/claims';
+import type { Dispute } from '../lib/claims';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { AgentTerminal } from '../components/AgentTerminal';
 import type { TerminalEvent } from '../components/AgentTerminal';
 import { PayoutWaterfall } from '../components/PayoutWaterfall';
 import { StatusStamp } from '../components/StatusStamp';
 import { DischargeSlipModal } from '../components/DischargeSlipModal';
+import { DisputeCard } from '../components/DisputeCard';
+import { FlaggedLine } from '../components/FlaggedLine';
 import { formatCurrency } from '../lib/format';
 import { Printer } from 'lucide-react';
 import { toast } from 'sonner';
 
+/** Remounts per claim, so one claim's run never shows under another claim's URL. */
 export function ClaimView() {
   const { id } = useParams();
+  return <ClaimDetail key={id} id={id ?? ''} />;
+}
+
+function ClaimDetail({ id }: { id: string }) {
   const profile = useAccount();
+  const isPatient = profile.role === 'PATIENT';
   const [claim, setClaim] = useState<any>(null);
+  const [loadError, setLoadError] = useState('');
   const [events, setEvents] = useState<TerminalEvent[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [streaming, setStreaming] = useState(false); // this tab holds the open run stream
   const [showSlip, setShowSlip] = useState(false);
+  const streamAbort = useRef<AbortController | null>(null);
 
-  const loadClaim = useCallback(async () => {
-    if (!id) return;
-    try {
-      // The backend wraps the claim: { claim: { ..., policies, ai_reasoning_log } }
-      const { claim: data } = await fetchApi(`/api/claims/${id}`);
-      setClaim(data);
-      setEvents(toTerminalEvents(data.ai_reasoning_log));
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  }, [id]);
+  const loadClaim = useCallback(
+    () =>
+      // The backend wraps the claim: { claim: { ..., policies, disputes, ai_reasoning_log } }
+      fetchApi(`/api/claims/${id}`)
+        .then(({ claim: data }) => {
+          setClaim(data);
+          setLoadError('');
+          // A run still in flight has no saved log yet; keep the lines already streamed.
+          if (data.ai_reasoning_log) setEvents(toTerminalEvents(data.ai_reasoning_log));
+        })
+        .catch((err: any) => setLoadError(err.message)),
+    [id]
+  );
 
+  useEffect(() => { loadClaim(); }, [loadClaim]);
+
+  // A run this tab is not streaming (the stream dropped, or it was started
+  // before this page opened) still finishes and saves on the backend, so wait
+  // for its verdict instead of offering to run the claim a second time.
+  const adjudicating = Boolean(claim?.adjudicating);
   useEffect(() => {
-    let active = true;
-    if (!id) return;
-    fetchApi(`/api/claims/${id}`)
-      .then(({ claim: data }) => {
-        if (!active) return;
-        setClaim(data);
-        setEvents(toTerminalEvents(data.ai_reasoning_log));
-      })
-      .catch((err: any) => {
-        if (!active) return;
-        toast.error(err.message);
-      });
-    return () => {
-      active = false;
-    };
-  }, [id]);
+    if (!adjudicating || streaming) return;
+    const timer = setInterval(loadClaim, 2000);
+    return () => clearInterval(timer);
+  }, [adjudicating, streaming, loadClaim]);
+
+  useEffect(() => () => streamAbort.current?.abort(), []);
+
+  const busy = streaming || adjudicating;
 
   const runAdjudication = async () => {
-    if (!claim || claim.status !== 'PENDING') return;
+    if (!claim || claim.status !== 'PENDING' || busy) return;
 
-    setIsProcessing(true);
+    setStreaming(true);
     setEvents([]);
 
     const token = await getAccessToken();
     const startedAt = Date.now();
-    let settled = false; // a `result` or `error` event arrived
+    const abort = new AbortController();
+    streamAbort.current = abort;
+    let settled = false; // the `result` event arrived
 
     try {
       await fetchEventSource(`${API_BASE}/api/claims/${id}/process`, {
@@ -67,6 +80,7 @@ export function ClaimView() {
         headers: {
           'Authorization': `Bearer ${token}`
         },
+        signal: abort.signal,
         // By default the stream is dropped when the tab is hidden and the POST
         // is sent again when it is shown, which would adjudicate the claim twice.
         openWhenHidden: true,
@@ -82,41 +96,69 @@ export function ClaimView() {
           if (ev.event === 'result') {
             settled = true;
             setClaim(data);
-            setIsProcessing(false);
           } else if (ev.event === 'error') {
-            settled = true;
             toast.error(data.message);
-            setIsProcessing(false);
-            loadClaim();
           } else {
             setEvents(prev => [...prev, { ts: Date.now() - startedAt, event: ev.event as any, data }]);
           }
         },
         onerror(err) {
-          toast.error(err?.message || 'Connection lost');
-          setIsProcessing(false);
+          // Rethrown to stop the library's automatic retry, which would POST the run again.
           throw err;
-        },
-        onclose() {
-          setIsProcessing(false);
-          // The stream ended without a verdict; the backend still finishes and saves the run.
-          if (!settled) loadClaim();
         }
       });
-    } catch (err) {
-      console.error(err);
-      setIsProcessing(false);
+    } catch (err: any) {
+      if (!abort.signal.aborted) toast.error(err?.message || 'Connection lost');
+    } finally {
+      setStreaming(false);
+      // No verdict came down this stream. Ask the backend where the claim stands:
+      // if the run is still going there, it comes back as `adjudicating`.
+      if (!settled && !abort.signal.aborted) loadClaim();
     }
   };
 
-  if (!claim) return <div className="p-10 text-center font-mono">Loading...</div>;
+  const upsertDispute = (dispute: Dispute) =>
+    setClaim((c: any) => ({
+      ...c,
+      disputes: [...(c.disputes ?? []).filter((d: Dispute) => d.id !== dispute.id), dispute].sort(
+        (a: Dispute, b: Dispute) => a.line_number - b.line_number
+      )
+    }));
+
+  if (!claim) {
+    if (!loadError) return <div className="p-10 text-center font-mono">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-paper p-8 rounded-lg border border-rule text-center space-y-4 shadow-sm">
+          <div className="font-serif text-2xl text-pine-deep">Unable to load this claim</div>
+          <div className="text-sm text-vermilion font-mono bg-vermilion/5 border border-vermilion/20 p-3 rounded">{loadError}</div>
+          <div className="flex justify-center gap-3 pt-2">
+            <Link to="/dashboard" className="px-4 py-2 border border-rule text-sm rounded hover:bg-bone transition-colors font-medium">
+              Back to dashboard
+            </Link>
+            <button onClick={loadClaim} className="px-4 py-2 bg-pine hover:bg-pine-deep text-bone text-sm rounded transition-colors font-medium">
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const log = claim.ai_reasoning_log;
   const breakdown = toPayoutBreakdown(log);
   const flagged = flaggedLines(log);
   const flagByLine = new Map(flagged.map(l => [l.line, l]));
+  const disputes: Dispute[] = claim.disputes ?? [];
+  const disputedLines = new Set(disputes.map(d => d.line_number));
+  const decided = claim.status !== 'PENDING';
   // A patient can open a claim the hospital filed for them, but only the hospital can run it.
-  const canRun = claim.status === 'PENDING' && (profile.role !== 'PATIENT' || claim.source === 'PATIENT');
+  const canRun = !decided && (!isPatient || claim.source === 'PATIENT');
+  // A bill the patient entered themselves has no hospital account behind it to answer.
+  const canDispute = isPatient && claim.source === 'HOSPITAL';
+  const payoutNote = !decided
+    ? busy ? 'Adjudication in progress' : 'Not adjudicated yet'
+    : isPatient ? `You pay ${formatCurrency(patientPayable(claim))}` : '';
 
   return (
     <div className="min-h-screen p-6 md:p-10 max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -173,15 +215,19 @@ export function ClaimView() {
           {canRun && (
             <button
               onClick={runAdjudication}
-              disabled={isProcessing}
+              disabled={busy}
               className="bg-phosphor hover:bg-phosphor/80 text-pine-deep font-bold font-mono text-xs uppercase tracking-widest px-4 py-2 rounded transition-colors disabled:opacity-50 flex items-center gap-2 shadow-[0_0_15px_rgba(92,255,157,0.3)]"
             >
-              {isProcessing ? 'Processing...' : 'Run Autonomous Adjudication'}
+              {busy ? 'Processing...' : 'Run Autonomous Adjudication'}
             </button>
           )}
         </div>
 
-        <AgentTerminal events={events} isProcessing={isProcessing} />
+        {loadError && (
+          <div className="text-xs text-vermilion font-mono">Could not refresh this claim: {loadError}</div>
+        )}
+
+        <AgentTerminal events={events} isProcessing={busy} />
       </div>
 
       {/* Right: Summary */}
@@ -190,7 +236,7 @@ export function ClaimView() {
           <div className="flex justify-between items-start border-b border-rule pb-4 mb-6">
             <h2 className="font-mono text-xs uppercase tracking-widest text-ink-soft">Decision Summary</h2>
             <div className="flex items-center gap-2">
-              {claim.status !== 'PENDING' && (
+              {decided && (
                 <button
                   type="button"
                   onClick={() => setShowSlip(true)}
@@ -200,15 +246,17 @@ export function ClaimView() {
                   <Printer size={13} /> Discharge Slip
                 </button>
               )}
-              <StatusStamp status={isProcessing ? 'PROCESSING' : claim.status} />
+              <StatusStamp status={busy ? 'PROCESSING' : claim.status} />
             </div>
           </div>
 
           <div className="text-center mb-8">
             <div className="text-ink-soft text-sm mb-1">Approved Payout</div>
             <div className="font-serif text-5xl text-pine-deep tracking-tight">
-              {formatCurrency(claim.approved_amount)}
+              {/* Until a verdict exists the stored amount is only the column default of 0. */}
+              {decided ? formatCurrency(claim.approved_amount) : '—'}
             </div>
+            {payoutNote && <div className="text-xs text-ink-soft font-mono mt-2">{payoutNote}</div>}
           </div>
 
           <div className="flex-1">
@@ -222,14 +270,33 @@ export function ClaimView() {
                   {claim.status === 'DENIED' ? 'Claim Denied' : 'Line Items Not Paid'}
                 </div>
                 {flagged.map(l => (
-                  <div key={l.line} className={`p-3 rounded border text-sm ${isSuspicious(l.flag) ? 'bg-vermilion/10 text-vermilion border-vermilion/20' : 'bg-amber/10 text-amber border-amber/20'}`}>
-                    <div className="flex justify-between gap-3 font-bold">
-                      <span>{l.item_name} · {flagLabel(l.flag)}</span>
-                      <span className="font-mono shrink-0">{formatCurrency(l.cost)}</span>
-                    </div>
-                    <div className="text-ink-soft mt-1">{l.reason}</div>
-                  </div>
+                  <FlaggedLine
+                    key={l.line}
+                    claimId={claim.id}
+                    line={l}
+                    canDispute={canDispute}
+                    disputed={disputedLines.has(l.line)}
+                    onDisputed={upsertDispute}
+                  />
                 ))}
+                {isPatient && flagged.some(l => isSuspicious(l.flag)) && (
+                  <p className="text-xs text-ink-soft">
+                    A flag means the charge is worth asking about. It is not proof that the hospital did anything wrong.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {disputes.length > 0 && (
+              <div className="mt-8 space-y-2">
+                <div className="font-mono text-xs uppercase tracking-widest text-ink-soft">
+                  {isPatient ? 'Your disputes on this bill' : `Patient disputes (${disputes.length})`}
+                </div>
+                <ul className="space-y-2">
+                  {disputes.map(d => (
+                    <DisputeCard key={d.id} dispute={d} onChanged={upsertDispute} />
+                  ))}
+                </ul>
               </div>
             )}
           </div>

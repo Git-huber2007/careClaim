@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../services/supabase.js';
+import { config } from '../config.js';
 import { HttpError } from '../utils/http.js';
 
 /**
@@ -23,12 +24,37 @@ export async function requireAuth(req, _res, next) {
       throw new HttpError(401, 'Missing or malformed Authorization header or token query parameter.');
     }
 
+    let user = null;
     const { data, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !data?.user) {
-      throw new HttpError(401, 'Invalid or expired session token.');
+    if (data?.user) {
+      user = data.user;
+    } else {
+      // Direct verification fallback via Supabase auth API endpoint
+      try {
+        const directRes = await fetch(`${config.supabaseUrl}/auth/v1/user`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'apikey': config.supabaseServiceRoleKey,
+          },
+        });
+        if (directRes.ok) {
+          const directData = await directRes.json();
+          if (directData?.id) {
+            user = directData;
+          }
+        }
+      } catch (fallbackErr) {
+        console.error('[auth] Direct token verification failed:', fallbackErr?.message || fallbackErr);
+      }
     }
 
-    req.user = { id: data.user.id, email: data.user.email };
+    if (!user) {
+      const detail = error?.message || 'Invalid or expired session token.';
+      console.warn('[auth] Authentication failed:', detail);
+      throw new HttpError(401, `Invalid or expired session token (${detail})`);
+    }
+
+    req.user = { id: user.id, email: user.email };
     next();
   } catch (err) {
     next(err);

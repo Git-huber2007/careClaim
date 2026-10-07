@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { fetchApi } from '../lib/api';
 import { formatCurrency } from '../lib/format';
 import { StatusStamp } from '../components/StatusStamp';
@@ -33,6 +33,7 @@ export function Dashboard() {
         </div>
         <div className="flex items-center gap-4">
           <button onClick={signOut} className="text-sm text-ink-soft hover:underline">Sign out</button>
+          <Link to="/disputes" className="text-sm text-pine font-medium hover:underline">Disputes</Link>
           <button
             onClick={() => navigate('/claims/new')}
             className="bg-pine hover:bg-pine-deep text-bone px-4 py-2 rounded flex items-center gap-2 text-sm font-medium transition-colors"

@@ -5,6 +5,7 @@ import { AccountSetup } from './pages/AccountSetup';
 import { Dashboard } from './pages/Dashboard';
 import { NewClaim } from './pages/NewClaim';
 import { ClaimView } from './pages/ClaimView';
+import { Disputes } from './pages/Disputes';
 
 export default function App() {
   return (
@@ -15,6 +16,8 @@ export default function App() {
       <Route path="/dashboard" element={<RequireAccount><Dashboard /></RequireAccount>} />
       <Route path="/claims/new" element={<RequireAccount><NewClaim /></RequireAccount>} />
       <Route path="/claims/:id" element={<RequireAccount><ClaimView /></RequireAccount>} />
+      <Route path="/disputes" element={<RequireAccount><Disputes /></RequireAccount>} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 }

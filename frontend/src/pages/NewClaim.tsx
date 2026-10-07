@@ -7,6 +7,9 @@ import { formatCurrency } from '../lib/format';
 import { Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
+// The file travels as base64 inside JSON (a third larger), and the API accepts 15 MB.
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
 export function NewClaim() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -44,6 +47,10 @@ export function NewClaim() {
       toast.error('Please upload a PDF document or image (PNG, JPG, WebP).');
       return;
     }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error('That file is too large. Upload a document under 10 MB.');
+      return;
+    }
     setExtracting(true);
     const toastId = toast.loading('Extracting bill lines with Gemini Vision...');
     try {
@@ -57,7 +64,7 @@ export function NewClaim() {
       if (data.items?.length) {
         setItems(data.items.map((it: any) => ({ item_name: it.item_name, cost: it.cost, quantity: 1 })));
       }
-      if (data.diagnosis_code && !diagnosis) setDiagnosis(data.diagnosis_code);
+      if (data.diagnosis_code) setDiagnosis(data.diagnosis_code);
       if (!isPatient && data.patient_id) setPatientId(data.patient_id);
       if (data.policy_number) {
         const match = policies.find(p => p.policy_number.toLowerCase().includes(data.policy_number.toLowerCase()));
@@ -190,6 +197,8 @@ export function NewClaim() {
                 className="hidden"
                 onChange={e => {
                   const f = e.target.files?.[0];
+                  // Cleared so that choosing the same file again (a retry) still fires onChange.
+                  e.target.value = '';
                   if (f) handleFileUpload(f);
                 }}
               />

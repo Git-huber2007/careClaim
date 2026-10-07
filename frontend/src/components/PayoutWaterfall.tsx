@@ -9,8 +9,9 @@ export function PayoutWaterfall({ breakdown }: { breakdown: any }) {
     { label: 'Exclusions', amount: -breakdown.exclusions, color: 'bg-vermilion' },
     { label: 'Copay Deducted', amount: -breakdown.copay_amount, color: 'bg-amber' },
     { label: 'Limit Cap Reduction', amount: -breakdown.limit_reduction, color: 'bg-amber' },
-    { label: 'Final Payout', amount: breakdown.payout, color: 'bg-phosphor', isFinal: true }
-  ].filter(s => s.amount !== 0);
+    { label: 'Final Payout', amount: breakdown.payout, color: 'bg-pine', isFinal: true }
+    // A deduction of zero is noise; a payout of zero is the verdict.
+  ].filter(s => s.isFinal || s.amount !== 0);
 
   const maxAmount = Math.max(...steps.map(s => Math.abs(s.amount)));
 
@@ -32,7 +33,7 @@ export function PayoutWaterfall({ breakdown }: { breakdown: any }) {
               initial={{ width: 0 }}
               animate={{ width: `${(Math.abs(step.amount) / maxAmount) * 100}%` }}
               transition={{ duration: 0.5, delay: idx * 0.15 + 0.1 }}
-              className={`h-full ${step.color} ${step.isFinal ? 'bg-pine' : ''}`}
+              className={`h-full ${step.color}`}
             />
           </div>
           <div className={`w-32 shrink-0 font-bold ${step.amount < 0 ? 'text-vermilion' : 'text-ink'}`}>

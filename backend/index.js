@@ -27,7 +27,17 @@ app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', model: config.geminiModel, configured: missingEnv.length === 0, missing: missingEnv });
+  let supabaseHost = null;
+  try {
+    supabaseHost = config.supabaseUrl ? new URL(config.supabaseUrl).host : null;
+  } catch {}
+  res.json({
+    status: 'ok',
+    model: config.geminiModel,
+    supabaseHost,
+    configured: missingEnv.length === 0,
+    missing: missingEnv,
+  });
 });
 
 app.use('/api/me', meRouter);

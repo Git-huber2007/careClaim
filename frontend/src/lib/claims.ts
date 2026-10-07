@@ -44,6 +44,30 @@ export function flaggedLines(log: any): LineDecision[] {
   return (log?.denied_items ?? []).map((d: any) => ({ ...d, flag: d.flag ?? 'NOT_COVERED' }));
 }
 
+/** What the patient still owes on an adjudicated claim. */
+export function patientPayable(claim: any) {
+  return Number(
+    claim.ai_reasoning_log?.breakdown?.patient_payable ??
+      Math.max(0, Number(claim.total_billed) - Number(claim.approved_amount || 0))
+  );
+}
+
+/** A bill line the patient has questioned, and the hospital's answer once given. */
+export interface Dispute {
+  id: string;
+  claim_id: string;
+  line_number: number;
+  item_name: string;
+  cost: number;
+  flag: string | null;
+  patient_note: string | null;
+  status: 'OPEN' | 'ACCEPTED' | 'REJECTED';
+  hospital_response: string | null;
+  created_at: string;
+  /** Only on the disputes list (GET /api/disputes), which spans claims. */
+  patient_id?: string;
+}
+
 /** One bill row of the intake form → the { item_name, cost } line the backend stores. */
 export function toBillLine(item: { item_name: string; cost: number; quantity: number }) {
   const quantity = Math.max(1, Math.floor(item.quantity) || 1);

@@ -30,6 +30,14 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* The discharge slip is portalled to <body>, outside #root, so hiding the app
+   while it is open leaves the slip as the only thing on the printed page. */
+@media print {
+  body:has(#printable-clearance-slip) #root {
+    display: none;
+  }
+}
+
 @layer utilities {
   .term-scrollbar::-webkit-scrollbar {
     width: 6px;

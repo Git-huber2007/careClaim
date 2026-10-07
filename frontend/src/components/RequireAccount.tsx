@@ -29,14 +29,7 @@ export function RequireAccount({ children }: { children: ReactNode }) {
         setProfile(me.profile);
       } catch (err: any) {
         if (cancelled) return;
-        // If session is expired or token is invalid, wipe the stale session and redirect to login
-        const msg = String(err?.message || '').toLowerCase();
-        if (err?.status === 401 || msg.includes('token') || msg.includes('expired') || msg.includes('session')) {
-          await supabase.auth.signOut();
-          navigate('/login', { replace: true });
-          return;
-        }
-        setError(err.message || 'Failed to authenticate account');
+        setError(err.message || 'Failed to authenticate account with CareClaim backend.');
       }
     })();
     return () => { cancelled = true; };

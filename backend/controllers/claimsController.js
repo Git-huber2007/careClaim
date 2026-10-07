@@ -140,11 +140,16 @@ export async function getStats(req, res) {
   });
 }
 
+// Claims this process is adjudicating right now. A run outlives the request
+// that started it, so a second request for the same claim would start a second
+// model run and overwrite the first verdict.
+const inFlight = new Set();
+
 /** GET /api/claims/:id */
 export async function getClaim(req, res) {
   const { id } = uuidParamSchema.parse(req.params);
   const claim = await getAccessibleClaim(id, req);
-  res.json({ claim: present(claim, req) });
+  res.json({ claim: { ...present(claim, req), adjudicating: inFlight.has(claim.id) } });
 }
 
 /**
@@ -153,6 +158,25 @@ export async function getClaim(req, res) {
  * the same log lines are stored as the claim's chain_of_thought.
  */
 async function adjudicate(id, req, { onStage = () => {}, onLog = () => {} } = {}) {
+  onStage('intake');
+  const claim = await getAccessibleClaim(id, req);
+  // A patient can read a claim the hospital filed for them, but only run their own bill checks.
+  if (isPatient(req) && claim.source !== 'PATIENT') {
+    throw new HttpError(403, 'Only the hospital that filed this claim can run its adjudication.');
+  }
+  if (inFlight.has(claim.id)) {
+    throw new HttpError(409, 'This claim is already being adjudicated. The verdict appears when that run finishes.');
+  }
+
+  inFlight.add(claim.id);
+  try {
+    return await runAgent(claim, req, { onStage, onLog });
+  } finally {
+    inFlight.delete(claim.id);
+  }
+}
+
+async function runAgent(claim, req, { onStage, onLog }) {
   const startedAt = Date.now();
   const logLines = [];
   let listenerMs = 0; // time spent inside onLog (stream pacing), kept out of the reported duration
@@ -165,13 +189,6 @@ async function adjudicate(id, req, { onStage = () => {}, onLog = () => {} } = {}
     }
   };
   const elapsedMs = () => Date.now() - startedAt - listenerMs;
-
-  onStage('intake');
-  const claim = await getAccessibleClaim(id, req);
-  // A patient can read a claim the hospital filed for them, but only run their own bill checks.
-  if (isPatient(req) && claim.source !== 'PATIENT') {
-    throw new HttpError(403, 'Only the hospital that filed this claim can run its adjudication.');
-  }
 
   const policy = claim.policies;
   if (!policy) throw new HttpError(422, 'Claim has no associated policy; cannot adjudicate.');

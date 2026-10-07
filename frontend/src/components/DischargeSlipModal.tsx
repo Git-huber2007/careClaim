@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { formatCurrency, formatDate } from '../lib/format';
-import { flagLabel } from '../lib/claims';
+import { flagLabel, patientPayable } from '../lib/claims';
 import { Printer, X } from 'lucide-react';
 
 interface DischargeSlipModalProps {
@@ -35,9 +36,9 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
       ? 'border-amber-700 text-amber-800 bg-amber-50'
       : 'border-rose-700 text-rose-800 bg-rose-50';
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm print:static print:p-0 print:bg-white">
-      <div className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-paper text-ink shadow-2xl border border-rule print:max-h-none print:shadow-none print:w-full print:rounded-none print:border-none">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm print:static print:block print:overflow-visible print:p-0 print:bg-white print:backdrop-blur-none">
+      <div className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-paper text-ink shadow-2xl border border-rule print:max-h-none print:max-w-none print:overflow-visible print:shadow-none print:w-full print:rounded-none print:border-none">
         {/* Action Toolbar (Screen Only) */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-rule bg-bone px-6 py-3 print:hidden">
           <div className="flex items-center gap-2">
@@ -146,10 +147,7 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
               <div className="p-3 bg-amber-500/10">
                 <p className="text-[10px] text-amber-800 uppercase font-bold">Patient Payable</p>
                 <p className="mt-1 text-base font-bold text-amber-800">
-                  {formatCurrency(
-                    breakdown.patient_payable ??
-                      Math.max(0, Number(claim.total_billed) - Number(claim.approved_amount || 0))
-                  )}
+                  {formatCurrency(patientPayable(claim))}
                 </p>
               </div>
             </div>
@@ -222,6 +220,7 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

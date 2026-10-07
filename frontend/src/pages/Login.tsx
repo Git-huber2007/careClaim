@@ -7,8 +7,8 @@ import { toast } from 'sonner';
 export function Login() {
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('demo@careclaim.ai');
-  const [password, setPassword] = useState('demo123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -66,6 +66,7 @@ export function Login() {
                 type="email" 
                 value={email}
                 onChange={e => setEmail(e.target.value)}
+                placeholder="doctor@hospital.org"
                 className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm focus:outline-none focus:border-pine focus:ring-1 focus:ring-pine transition-all"
                 required
               />
@@ -76,6 +77,7 @@ export function Login() {
                 type="password" 
                 value={password}
                 onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
                 className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm focus:outline-none focus:border-pine focus:ring-1 focus:ring-pine transition-all"
                 required
               />

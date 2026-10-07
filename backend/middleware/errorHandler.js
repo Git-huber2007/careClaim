@@ -18,6 +18,10 @@ export function errorHandler(err, _req, res, _next) {
     return res.status(400).json({ error: 'Malformed JSON body.' });
   }
 
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'The upload is too large. Use a file under 10 MB.' });
+  }
+
   const status = err instanceof HttpError ? err.status : 500;
   if (status >= 500) console.error('[error]', err);
 
