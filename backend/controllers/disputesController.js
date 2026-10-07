@@ -53,15 +53,16 @@ export async function listDisputes(req, res) {
   if (req.profile.role === 'PATIENT') {
     query = query.eq('patient_user_id', req.user.id);
   } else if (req.profile?.hospital_org) {
-    query = query.or(`claims.hospital_org.eq.${req.profile.hospital_org},claims.hospital_user_id.eq.${req.user.id}`);
+    const escapedOrg = req.profile.hospital_org.replace(/"/g, '\\"');
+    query = query.or(`hospital_org.eq."${escapedOrg}",hospital_user_id.eq.${req.user.id}`, { foreignTable: 'claims' });
   } else {
     query = query.eq('claims.hospital_user_id', req.user.id);
   }
 
   let { data, error } = await query.order('created_at', { ascending: false });
 
-  // Fallback if hospital_org column has not been added to claims schema yet
-  if (error && error.code === '42703') {
+  // Fallback if hospital_org column has not been added to claims schema yet or PostgREST logic error
+  if (error && (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('hospital_org') || error.message?.includes('logic tree'))) {
     const fallbackQuery = supabaseAdmin
       .from('disputes')
       .select(`${DISPUTE_COLUMNS}, claims!inner(patient_id, diagnosis_code, hospital_user_id)`);
@@ -90,7 +91,7 @@ export async function respondToDispute(req, res) {
     .eq('id', id)
     .maybeSingle();
 
-  if (findErr && findErr.code === '42703') {
+  if (findErr && (findErr.code === '42703' || findErr.code === 'PGRST204' || findErr.message?.includes('hospital_org'))) {
     const retry = await supabaseAdmin
       .from('disputes')
       .select('id, status, claims!inner(hospital_user_id)')

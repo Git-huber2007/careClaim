@@ -96,11 +96,18 @@ function present(claim, req) {
 }
 
 /** PostgREST answers at most 1000 rows at a time; read every page so lists and totals are complete. */
-async function allRows(buildQuery) {
+async function allRows(buildQuery, fallbackQuery) {
   const PAGE = 1000;
   const rows = [];
+  let currentBuilder = buildQuery;
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await buildQuery().range(from, from + PAGE - 1);
+    let { data, error } = await currentBuilder().range(from, from + PAGE - 1);
+    if (error && fallbackQuery && (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('hospital_org') || error.message?.includes('logic tree'))) {
+      currentBuilder = fallbackQuery;
+      const retry = await currentBuilder().range(from, from + PAGE - 1);
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) throw new HttpError(500, `Database error: ${error.message}`);
     rows.push(...data);
     if (data.length < PAGE) return rows;
@@ -204,30 +211,34 @@ export async function extractBill(req, res) {
 
 
 /** The claims the caller may see (the list-level form of canAccess). */
-function scopedClaims(req, columns) {
+function scopedClaims(req, columns, fallbackWithoutOrg = false) {
   const query = supabaseAdmin.from('claims').select(columns);
   if (isPatient(req)) {
     return query.eq('patient_id', req.profile.patient_id).or(`source.eq.HOSPITAL,patient_user_id.eq.${req.user.id}`);
   }
   // Hospital staff share their organization's claim queue
-  if (req.profile?.hospital_org) {
-    return query.eq('source', 'HOSPITAL').or(`hospital_org.eq.${req.profile.hospital_org},hospital_user_id.eq.${req.user.id}`);
+  if (!fallbackWithoutOrg && req.profile?.hospital_org) {
+    const escapedOrg = req.profile.hospital_org.replace(/"/g, '\\"');
+    return query.eq('source', 'HOSPITAL').or(`hospital_org.eq."${escapedOrg}",hospital_user_id.eq.${req.user.id}`);
   }
   return query.eq('source', 'HOSPITAL').eq('hospital_user_id', req.user.id);
 }
 
 /** GET /api/claims */
 export async function listClaims(req, res) {
-  const claims = await allRows(() =>
-    scopedClaims(req, CLAIM_LIST_COLUMNS).order('created_at', { ascending: false }).order('id')
+  const claims = await allRows(
+    () => scopedClaims(req, CLAIM_LIST_COLUMNS).order('created_at', { ascending: false }).order('id'),
+    () => scopedClaims(req, CLAIM_LIST_COLUMNS, true).order('created_at', { ascending: false }).order('id')
   );
   res.json({ claims });
 }
 
 /** GET /api/stats — headline numbers over the caller's own claims */
 export async function getStats(req, res) {
-  const data = await allRows(() =>
-    scopedClaims(req, 'status, approved_amount, duration_ms:ai_reasoning_log->duration_ms').order('id')
+  const cols = 'status, approved_amount, duration_ms:ai_reasoning_log->duration_ms';
+  const data = await allRows(
+    () => scopedClaims(req, cols).order('id'),
+    () => scopedClaims(req, cols, true).order('id')
   );
 
   const adjudicated = data.filter((c) => c.status !== 'PENDING' && c.status !== 'PROCESSING');
