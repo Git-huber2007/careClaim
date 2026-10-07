@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 import { API_BASE, errorMessage, fetchApi, getAccessToken } from '../lib/api';
 import { useAccount } from '../lib/account';
@@ -21,11 +21,8 @@ export function ClaimView() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSlip, setShowSlip] = useState(false);
 
-  useEffect(() => {
-    if (id) loadClaim();
-  }, [id]);
-
-  const loadClaim = async () => {
+  const loadClaim = useCallback(async () => {
+    if (!id) return;
     try {
       // The backend wraps the claim: { claim: { ..., policies, ai_reasoning_log } }
       const { claim: data } = await fetchApi(`/api/claims/${id}`);
@@ -34,7 +31,25 @@ export function ClaimView() {
     } catch (err: any) {
       toast.error(err.message);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    let active = true;
+    if (!id) return;
+    fetchApi(`/api/claims/${id}`)
+      .then(({ claim: data }) => {
+        if (!active) return;
+        setClaim(data);
+        setEvents(toTerminalEvents(data.ai_reasoning_log));
+      })
+      .catch((err: any) => {
+        if (!active) return;
+        toast.error(err.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [id]);
 
   const runAdjudication = async () => {
     if (!claim || claim.status !== 'PENDING') return;
