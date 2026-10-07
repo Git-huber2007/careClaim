@@ -12,7 +12,10 @@ const ROLES = [
 /** One-time step after first sign-in: the backend needs every account to be a hospital or a patient. */
 export function AccountSetup() {
   const navigate = useNavigate();
-  const [role, setRole] = useState<'HOSPITAL' | 'PATIENT' | ''>('');
+  const [role, setRole] = useState<'HOSPITAL' | 'PATIENT' | ''>(() => {
+    const saved = localStorage.getItem('careclaim_portal_role');
+    return saved === 'HOSPITAL' || saved === 'PATIENT' ? saved : '';
+  });
   const [policyNumber, setPolicyNumber] = useState('');
   const [patientId, setPatientId] = useState('');
   const [submitting, setSubmitting] = useState(false);
