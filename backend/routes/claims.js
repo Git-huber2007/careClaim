@@ -3,6 +3,7 @@ import { requireAuth, requireProfile, requireRole } from '../middleware/auth.js'
 import { asyncHandler } from '../utils/http.js';
 import {
   createClaim,
+  extractBill,
   listClaims,
   getClaim,
   processClaim,
@@ -22,6 +23,7 @@ export const claimsRouter = Router();
 claimsRouter.use(requireAuth, requireProfile);
 
 claimsRouter.post('/', asyncHandler(createClaim));
+claimsRouter.post('/extract-bill', asyncHandler(extractBill));
 claimsRouter.get('/', asyncHandler(listClaims));
 claimsRouter.get('/:id', asyncHandler(getClaim));
 claimsRouter.post('/:id/process', asyncHandler(processClaim));

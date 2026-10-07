@@ -49,6 +49,9 @@ export const IconFlag = make(<><path d="M4 22V4" /><path d="M4 4h13l-2 4 2 4H4" 
 export const IconUser = make(<><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>);
 export const IconBuilding = make(<><rect x="4" y="3" width="16" height="18" rx="1.5" /><path d="M12 7v4M10 9h4M9 21v-4h6v4" /></>);
 export const IconLayers = make(<><path d="m12 2 10 5-10 5L2 7z" /><path d="m2 17 10 5 10-5M2 12l10 5 10-5" /></>);
+export const IconUpload = make(<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></>);
+export const IconPrinter = make(<><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></>);
+
 
 export const Spinner = ({ className = 'h-4 w-4' }) => (
   <svg viewBox="0 0 24 24" className={`animate-spin ${className}`} aria-hidden="true">

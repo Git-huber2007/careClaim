@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import DisputeCard from './DisputeCard';
+import DischargeSlipModal from './DischargeSlipModal';
 import { api } from '../lib/api';
 import { flagMeta, isSuspicious, lineItemsOf } from '../lib/flags';
 import { money } from '../lib/format';
-import { IconAlert, IconCheck, IconFlag, Spinner } from './Icons';
+import { IconAlert, IconCheck, IconFlag, IconPrinter, Spinner } from './Icons';
 
 /**
  * PatientBillReport
@@ -18,6 +19,7 @@ export default function PatientBillReport({ claim, onDisputed }) {
   const disputedLines = new Set(disputes.map((d) => d.line_number));
   // A bill the patient entered themselves has no hospital account behind it.
   const canDispute = claim.source === 'HOSPITAL';
+  const [showSlip, setShowSlip] = useState(false);
 
   const suspicious = lines.filter((l) => isSuspicious(l.flag));
   const notCovered = lines.filter((l) => l.flag === 'NOT_COVERED');
@@ -42,6 +44,17 @@ export default function PatientBillReport({ claim, onDisputed }) {
   return (
     <section id="patient-bill-report" className="space-y-6 animate-fade-up">
       <div className="glass p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <p className="label !mb-0">Adjudication Breakdown</p>
+          <button
+            type="button"
+            onClick={() => setShowSlip(true)}
+            id="patient-discharge-slip-btn"
+            className="btn-ghost text-xs border border-white/10 hover:border-brand-400/40 hover:bg-brand-400/10 text-brand-300"
+          >
+            <IconPrinter className="h-3.5 w-3.5" /> Discharge Slip / EOB
+          </button>
+        </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {tiles.map((t) => (
             <div key={t.label} className="rounded-xl bg-ink-950/60 p-3 ring-1 ring-white/5">
@@ -125,6 +138,8 @@ export default function PatientBillReport({ claim, onDisputed }) {
           </ul>
         </div>
       )}
+
+      {showSlip && <DischargeSlipModal claim={claim} onClose={() => setShowSlip(false)} />}
     </section>
   );
 }

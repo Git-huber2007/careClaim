@@ -1,8 +1,8 @@
 import { config } from '../config.js';
 import { supabaseAdmin } from '../services/supabase.js';
-import { runAdjudicationAgent } from '../services/geminiService.js';
+import { runAdjudicationAgent, extractBillFromDocument } from '../services/geminiService.js';
 import { computeAdjudication } from '../services/adjudicationMath.js';
-import { claimSubmissionSchema, uuidParamSchema } from '../validation/schemas.js';
+import { claimSubmissionSchema, uuidParamSchema, billExtractionSchema } from '../validation/schemas.js';
 import { HttpError } from '../utils/http.js';
 
 const CLAIM_LIST_COLUMNS =
@@ -96,6 +96,14 @@ export async function createClaim(req, res) {
   if (error) throw new HttpError(500, `Failed to create claim: ${error.message}`);
   res.status(201).json({ claim: data });
 }
+
+/** POST /api/claims/extract-bill — extract line items from image or PDF via Gemini Vision */
+export async function extractBill(req, res) {
+  const body = billExtractionSchema.parse(req.body);
+  const extracted = await extractBillFromDocument(body);
+  res.json({ extracted });
+}
+
 
 /** The claims the caller may see (the list-level form of canAccess). */
 function scopedClaims(req, columns) {

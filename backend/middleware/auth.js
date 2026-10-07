@@ -12,9 +12,15 @@ export async function requireAuth(req, _res, next) {
     }
 
     const header = req.headers.authorization || '';
-    const [scheme, token] = header.split(' ');
-    if (scheme !== 'Bearer' || !token) {
-      throw new HttpError(401, 'Missing or malformed Authorization header.');
+    let token = '';
+    if (header.startsWith('Bearer ')) {
+      token = header.slice(7).trim();
+    } else if (req.query?.token) {
+      token = String(req.query.token).trim();
+    }
+
+    if (!token) {
+      throw new HttpError(401, 'Missing or malformed Authorization header or token query parameter.');
     }
 
     const { data, error } = await supabaseAdmin.auth.getUser(token);

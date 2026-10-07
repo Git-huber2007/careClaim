@@ -65,3 +65,9 @@ export const adjudicationResultSchema = z.object({
   final_status: z.enum(['APPROVED', 'PARTIAL', 'DENIED']),
   approved_amount: z.number().nonnegative(),
 });
+
+export const billExtractionSchema = z.object({
+  fileBase64: z.string().min(1, 'File base64 data is required'),
+  mimeType: z.enum(['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/jpg']),
+});
+

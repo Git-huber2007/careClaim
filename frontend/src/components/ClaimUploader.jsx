@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 import { money, parseBill } from '../lib/format';
 import { SAMPLE_BILLS } from '../lib/sampleBills';
-import { IconBolt, IconFile, IconSparkle, Spinner } from './Icons';
+import { IconAlert, IconBolt, IconCheck, IconFile, IconSparkle, IconUpload, Spinner } from './Icons';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default function ClaimUploader() {
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
   const { profile } = useAuth();
   // A patient checks their own bill: the patient ID and policy are theirs, not free choices.
   const isPatient = profile?.role === 'PATIENT';
@@ -25,6 +26,9 @@ export default function ClaimUploader() {
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractSuccess, setExtractSuccess] = useState('');
+  const [extractError, setExtractError] = useState('');
 
   useEffect(() => {
     api
@@ -62,6 +66,62 @@ export default function ClaimUploader() {
     });
     setErrors({});
     setSubmitError('');
+    setExtractSuccess('');
+    setExtractError('');
+  }
+
+  async function handleFileUpload(file) {
+    if (!file) return;
+    setExtractError('');
+    setExtractSuccess('');
+
+    const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+      setExtractError('Please upload a PDF document or image (PNG, JPG, WebP).');
+      return;
+    }
+    if (file.size > 12 * 1024 * 1024) {
+      setExtractError('File size exceeds 12MB limit.');
+      return;
+    }
+
+    setExtracting(true);
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const extracted = await api.extractBill(base64, file.type);
+      setForm((prev) => {
+        const next = { ...prev };
+        next.itemized_bill = JSON.stringify(extracted.items, null, 2);
+        if (extracted.diagnosis_code && !next.diagnosis_code) {
+          next.diagnosis_code = extracted.diagnosis_code.toUpperCase();
+        }
+        if (!isPatient && extracted.patient_id && !next.patient_id) {
+          next.patient_id = extracted.patient_id;
+        }
+        if (extracted.policy_number) {
+          const match = policies.find((p) =>
+            p.policy_number.toLowerCase().includes(extracted.policy_number.toLowerCase())
+          );
+          if (match) next.policy_id = match.id;
+        }
+        return next;
+      });
+
+      setExtractSuccess(
+        `Extracted ${extracted.items.length} line items (Total ${money(extracted.total_billed)}) via Gemini Vision.`
+      );
+      setErrors((e) => ({ ...e, itemized_bill: undefined, diagnosis_code: undefined }));
+    } catch (err) {
+      setExtractError(err.message || 'Failed to extract bill items from document.');
+    } finally {
+      setExtracting(false);
+    }
   }
 
   function validate() {
@@ -167,6 +227,88 @@ export default function ClaimUploader() {
             <input id="diagnosis_code" className={`input font-mono uppercase ${errors.diagnosis_code ? 'input-error' : ''}`} placeholder="K35.80" value={form.diagnosis_code} onChange={set('diagnosis_code')} />
             {errors.diagnosis_code && <p className="mt-1.5 text-xs text-rose-300">{errors.diagnosis_code}</p>}
           </div>
+        </div>
+
+        {/* Multimodal Bill Document Extraction */}
+        <div className="rounded-xl border border-white/10 bg-ink-950/40 p-4 transition-all">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-semibold text-white flex items-center gap-1.5">
+                <IconUpload className="h-4 w-4 text-brand-300" />
+                Upload Bill Document (PDF, Photo, Scan)
+              </p>
+              <p className="text-[11px] text-ink-400">
+                Gemini 2.5 Flash Vision extracts itemized tables, amounts, patient ID & diagnosis.
+              </p>
+            </div>
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf,image/*"
+                className="hidden"
+                id="bill-file-upload"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFileUpload(f);
+                }}
+              />
+              <button
+                type="button"
+                id="btn-upload-bill"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={extracting}
+                className="btn-ghost text-xs border border-white/10 hover:border-brand-400/40 hover:bg-brand-400/10"
+              >
+                {extracting ? <Spinner className="h-3.5 w-3.5" /> : <IconUpload className="h-3.5 w-3.5" />}
+                {extracting ? 'Extracting with Gemini Vision…' : 'Choose PDF / Image'}
+              </button>
+            </div>
+          </div>
+
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const f = e.dataTransfer.files?.[0];
+              if (f) handleFileUpload(f);
+            }}
+            onClick={() => fileInputRef.current?.click()}
+            className={`mt-3 cursor-pointer rounded-xl border border-dashed transition-all p-4 text-center ${
+              extracting
+                ? 'border-brand-400/60 bg-brand-400/5 animate-pulse'
+                : 'border-white/10 hover:border-brand-400/40 hover:bg-white/[0.02]'
+            }`}
+          >
+            {extracting ? (
+              <div className="flex items-center justify-center gap-2 text-xs text-brand-300 font-medium">
+                <Spinner className="h-4 w-4" />
+                <span>Scanning document & structuring itemized charges…</span>
+              </div>
+            ) : (
+              <p className="text-xs text-ink-400">
+                Drag & drop your hospital bill PDF or bill photo here, or click to browse
+              </p>
+            )}
+          </div>
+
+          {extractSuccess && (
+            <div className="mt-2.5 flex items-center gap-2 rounded-lg bg-emerald-400/10 px-3 py-2 text-xs text-emerald-200 ring-1 ring-emerald-400/20">
+              <IconCheck className="h-3.5 w-3.5 text-emerald-300 shrink-0" />
+              <span>{extractSuccess}</span>
+            </div>
+          )}
+
+          {extractError && (
+            <div className="mt-2.5 flex items-center gap-2 rounded-lg bg-rose-400/10 px-3 py-2 text-xs text-rose-200 ring-1 ring-rose-400/20">
+              <IconAlert className="h-3.5 w-3.5 text-rose-300 shrink-0" />
+              <span>{extractError}</span>
+            </div>
+          )}
         </div>
 
         <div>

@@ -170,3 +170,112 @@ export async function runAdjudicationAgent(claim, policy, referencePrices = []) 
   if (lastError instanceof HttpError) throw lastError;
   throw new HttpError(502, `AI adjudication failed: ${describeError(lastError)}`);
 }
+
+const EXTRACT_SYSTEM_PROMPT = `You are CareClaim AI's medical bill document extraction specialist.
+Your task is to analyze an uploaded hospital discharge bill, tax invoice, pharmacy receipt, or clinical estimate (PDF or image).
+You must extract:
+1. Every individual line item (services, procedures, bed charges, tests, medications, consultations).
+2. The cost for each item in Indian Rupees (INR / ₹) as a positive number.
+3. The total billed amount.
+4. Any visible Patient ID (e.g. PAT-1001, UHID, IPD number), Policy Number, or ICD-10 Diagnosis code.
+Rules:
+- Never hallucinate lines not present in the document.
+- If an item has quantity and unit price, compute the line total (quantity * unit price).
+- If currency symbols (₹, Rs, INR) or commas exist, normalize to pure numeric values.
+- Return strictly in the structured JSON format matching the schema.`;
+
+const EXTRACT_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    patient_id: { type: Type.STRING, description: 'Patient ID, UHID, or IPD number if present, else empty string' },
+    diagnosis_code: { type: Type.STRING, description: 'Diagnosis or ICD-10 code if present, else empty string' },
+    policy_number: { type: Type.STRING, description: 'Policy or TPA number if present, else empty string' },
+    hospital_name: { type: Type.STRING, description: 'Hospital name if present, else empty string' },
+    items: {
+      type: Type.ARRAY,
+      description: 'List of all itemized charges found on the bill',
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          item_name: { type: Type.STRING, description: 'Service, test, procedure, or item name' },
+          cost: { type: Type.NUMBER, description: 'Total cost for this line item in INR (positive number)' },
+        },
+        required: ['item_name', 'cost'],
+      },
+    },
+    total_billed: { type: Type.NUMBER, description: 'Total billed amount in the document' },
+  },
+  required: ['items', 'total_billed'],
+};
+
+/**
+ * Extracts itemized bill data from a base64 encoded document (PDF or image) using Gemini multimodal vision.
+ */
+export async function extractBillFromDocument({ fileBase64, mimeType }) {
+  if (!ai) throw new HttpError(503, 'GEMINI_API_KEY is not configured on the server.');
+
+  const cleanBase64 = fileBase64.includes(',') ? fileBase64.split(',')[1] : fileBase64;
+
+  try {
+    const response = await withTimeout(
+      ai.models.generateContent({
+        model: config.geminiModel,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                inlineData: {
+                  mimeType,
+                  data: cleanBase64,
+                },
+              },
+              {
+                text: 'Extract all itemized bill line items, costs in INR, total billed, patient ID, and diagnosis from this medical bill document.',
+              },
+            ],
+          },
+        ],
+        config: {
+          systemInstruction: EXTRACT_SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: EXTRACT_RESPONSE_SCHEMA,
+          temperature: 0.1,
+        },
+      }),
+      60_000
+    );
+
+    const text = response.text;
+    if (!text) throw new Error('Empty extraction response from Gemini');
+    const parsed = JSON.parse(text);
+    const round2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+    const items = (parsed.items || [])
+      .map((it) => ({
+        item_name: String(it.item_name || '').trim(),
+        cost: round2(it.cost),
+      }))
+      .filter((it) => it.item_name && it.cost > 0);
+
+    if (items.length === 0) {
+      throw new HttpError(422, 'Could not detect any clear bill line items in the uploaded document.');
+    }
+
+    const calculatedTotal = round2(items.reduce((s, i) => s + i.cost, 0));
+    const total_billed =
+      parsed.total_billed && parsed.total_billed > 0 ? round2(parsed.total_billed) : calculatedTotal;
+
+    return {
+      patient_id: parsed.patient_id || '',
+      diagnosis_code: parsed.diagnosis_code || '',
+      policy_number: parsed.policy_number || '',
+      hospital_name: parsed.hospital_name || '',
+      items,
+      total_billed,
+    };
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
+    throw new HttpError(502, `Failed to extract bill data: ${describeError(err)}`);
+  }
+}
+

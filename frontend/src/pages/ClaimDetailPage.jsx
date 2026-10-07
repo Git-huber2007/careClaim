@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import AgentTerminal from '../components/AgentTerminal';
 import AdjudicationSummary from '../components/AdjudicationSummary';
+import DischargeSlipModal from '../components/DischargeSlipModal';
 import DisputeCard from '../components/DisputeCard';
 import PatientBillReport from '../components/PatientBillReport';
 import StatusBadge from '../components/StatusBadge';
-import { IconAlert, IconArrowLeft, IconBolt, IconClock, IconFile, IconFlag, IconRefresh, IconShield, Spinner } from '../components/Icons';
+import { IconAlert, IconArrowLeft, IconBolt, IconClock, IconFile, IconFlag, IconPrinter, IconRefresh, IconShield, Spinner } from '../components/Icons';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 import { flagMeta, lineItemsOf } from '../lib/flags';
@@ -25,6 +26,8 @@ export default function ClaimDetailPage() {
   const [termKey, setTermKey] = useState(0);
   const [animate, setAnimate] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [streamedLines, setStreamedLines] = useState([]);
+  const [showSlip, setShowSlip] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError('');
@@ -47,28 +50,44 @@ export default function ClaimDetailPage() {
     setRunError('');
     setRevealed(false);
     setPhase('thinking');
-    const started = Date.now();
+    setStreamedLines([]);
+    setAnimate(false);
+
     try {
-      const updated = await api.processClaim(id);
-      const wait = MIN_THINKING_MS - (Date.now() - started);
-      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-      setClaim(updated);
-      if (isPatient) {
+      await api.streamProcessClaim(id, {
+        onStage: () => {
+          setPhase('streaming');
+        },
+        onLog: (line) => {
+          setPhase('streaming');
+          setStreamedLines((prev) => [...prev, line]);
+        },
+        onResult: (updated) => {
+          setClaim(updated);
+          setPhase('done');
+          setRevealed(true);
+        },
+        onError: (errMsg) => {
+          throw new Error(errMsg);
+        },
+      });
+    } catch (e) {
+      // Fallback to standard HTTP process request if stream is interrupted
+      try {
+        const updated = await api.processClaim(id);
+        setClaim(updated);
         setPhase('done');
         setRevealed(true);
-        return;
+      } catch (err) {
+        setRunError(err.message || e.message);
+        setPhase('error');
+        setRevealed(Boolean(claim?.ai_reasoning_log));
       }
-      setAnimate(true);
-      setTermKey((k) => k + 1);
-      setPhase('streaming');
-    } catch (e) {
-      setRunError(e.message);
-      setPhase('error');
-      setRevealed(Boolean(claim?.ai_reasoning_log)); // a failed re-run keeps the previous result on screen
     }
   }
 
   function replay() {
+    setStreamedLines([]);
     setRevealed(false);
     setAnimate(true);
     setTermKey((k) => k + 1);
@@ -154,6 +173,16 @@ export default function ClaimDetailPage() {
         </div>
 
         <div className="flex gap-2">
+          {processed && phase === 'done' && (
+            <button
+              id="export-discharge-slip"
+              onClick={() => setShowSlip(true)}
+              className="btn-ghost border border-white/10 hover:border-teal-400/40 hover:bg-teal-400/10 text-white"
+            >
+              <IconPrinter className="h-4 w-4 text-brand-300" />
+              Discharge Slip / EOB
+            </button>
+          )}
           {!isPatient && processed && phase === 'done' && (
             <button id="replay-reasoning" onClick={replay} className="btn-ghost">
               <IconRefresh className="h-4 w-4" /> Replay reasoning
@@ -294,8 +323,8 @@ export default function ClaimDetailPage() {
               <AgentTerminal
                 key={termKey}
                 phase={phase}
-                lines={claim.ai_reasoning_log?.chain_of_thought ?? []}
-                animate={animate}
+                lines={streamedLines.length > 0 ? streamedLines : (claim.ai_reasoning_log?.chain_of_thought ?? [])}
+                animate={animate && streamedLines.length === 0}
                 error={runError}
                 onComplete={handleTerminalComplete}
               />
@@ -314,6 +343,8 @@ export default function ClaimDetailPage() {
           </div>
         )}
       </div>
+
+      {showSlip && <DischargeSlipModal claim={claim} onClose={() => setShowSlip(false)} />}
     </div>
   );
 }
