@@ -125,4 +125,10 @@ VALUES
     ARRAY['General Ward Hospitalization','Package Surgical Procedures','Kidney Stone Laser Lithotripsy','URS Laser Lithotripsy','Spinal Anesthesia','Ultrasound KUB','Post-Op Stent Removal','Prescribed Generic Medicines','Nursing Care'],
     ARRAY['Single Private Room','Flexible Ureteroscopy Extra Brand Premium','Unapproved Stent Brand Upcharges','Attendant Cot Rent']
 )
-ON CONFLICT (policy_number) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    patient_id = EXCLUDED.patient_id,
+    policy_number = EXCLUDED.policy_number,
+    max_coverage_limit = EXCLUDED.max_coverage_limit,
+    copay_percentage = EXCLUDED.copay_percentage,
+    covered_treatments = EXCLUDED.covered_treatments,
+    excluded_treatments = EXCLUDED.excluded_treatments;
