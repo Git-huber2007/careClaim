@@ -44,8 +44,8 @@ export async function loadProfile(userId) {
     .eq('id', userId)
     .maybeSingle();
 
-  // If hospital_org column does not exist yet (code 42703), retry without it
-  if (error && error.code === '42703') {
+  // If hospital_org column does not exist yet (code 42703 or PGRST204), retry without it
+  if (error && (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('hospital_org'))) {
     const retry = await supabaseAdmin
       .from('profiles')
       .select('id, role, patient_id, created_at')

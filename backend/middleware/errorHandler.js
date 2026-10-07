@@ -23,11 +23,11 @@ export function errorHandler(err, _req, res, _next) {
     return res.status(413).json({ error: `The request is too large (limit ${limit}).` });
   }
 
-  const status = err instanceof HttpError ? err.status : 500;
+  const status = (err instanceof HttpError || typeof err?.status === 'number') ? err.status : 500;
   if (status >= 500) console.error('[error]', err);
 
   res.status(status).json({
-    error: status >= 500 && !(err instanceof HttpError) ? 'Internal server error' : err.message,
+    error: err.message || 'Internal server error',
     ...(err.details ? { details: err.details } : {}),
   });
 }

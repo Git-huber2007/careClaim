@@ -337,7 +337,9 @@ async function adjudicate(id, req, { onStage = () => {}, onLog = () => {} } = {}
   } catch (err) {
     // If run failed before a final verdict was saved, roll back to PENDING so it can be retried
     if (dbLockAcquired) {
-      await supabaseAdmin.from('claims').update({ status: 'PENDING' }).eq('id', claim.id).eq('status', 'PROCESSING').catch(() => {});
+      try {
+        await supabaseAdmin.from('claims').update({ status: 'PENDING' }).eq('id', claim.id).eq('status', 'PROCESSING');
+      } catch {}
     }
     throw err;
   } finally {

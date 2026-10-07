@@ -47,8 +47,8 @@ export async function createProfile(req, res) {
       .select('id, patient_id, holder_email')
       .in('policy_number', [body.policy_number, body.policy_number.toUpperCase()]);
 
-    // Fallback if holder_email column has not been added yet
-    if (policyErr && policyErr.code === '42703') {
+    // Fallback if holder_email column has not been added yet (42703 or PGRST204)
+    if (policyErr && (policyErr.code === '42703' || policyErr.code === 'PGRST204' || policyErr.message?.includes('holder_email'))) {
       const retry = await supabaseAdmin
         .from('policies')
         .select('id, patient_id')
@@ -77,7 +77,11 @@ export async function createProfile(req, res) {
 
     // On first claim, securely bind this policy to the verified user email
     if (!policy.holder_email && req.user?.email) {
-      await supabaseAdmin.from('policies').update({ holder_email: req.user.email }).eq('id', policy.id).catch(() => {});
+      try {
+        await supabaseAdmin.from('policies').update({ holder_email: req.user.email }).eq('id', policy.id);
+      } catch (err) {
+        console.warn('[profile] bind holder_email bypassed:', err?.message);
+      }
     }
 
     patientId = policy.patient_id;
@@ -98,8 +102,8 @@ export async function createProfile(req, res) {
     .select('id, role, patient_id, hospital_org, created_at')
     .single();
 
-  // If hospital_org column does not exist yet (code 42703), retry without it
-  if (error && error.code === '42703') {
+  // If hospital_org column does not exist yet (code 42703 or PGRST204), retry without it
+  if (error && (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('hospital_org'))) {
     delete insertPayload.hospital_org;
     const retry = await supabaseAdmin
       .from('profiles')
@@ -112,7 +116,7 @@ export async function createProfile(req, res) {
 
   if (error) {
     // 23505 = unique violation: the patient ID (or, in a race, this account) is already taken.
-    if (error.code === '23505') {
+    if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('unique constraint') || error.message?.includes('idx_profiles_patient_id')) {
       throw new HttpError(409, 'This patient ID is already linked to another account.');
     }
     throw new HttpError(500, `Failed to save profile: ${error.message}`);
