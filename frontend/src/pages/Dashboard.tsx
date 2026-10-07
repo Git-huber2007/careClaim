@@ -2,12 +2,22 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { fetchApi } from '../lib/api';
 import { useAccount } from '../lib/account';
-import { approvedDisplay } from '../lib/claims';
+import { approvedDisplay, toCsv } from '../lib/claims';
 import { formatCurrency, shortId } from '../lib/format';
 import { StatusStamp } from '../components/StatusStamp';
 import { motion } from 'motion/react';
-import { Plus } from 'lucide-react';
+import { Download, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+
+const byDate = (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+const byBilled = (a: any, b: any) => Number(a.total_billed) - Number(b.total_billed);
+const SORTS = {
+  newest: { label: 'Newest first', compare: (a: any, b: any) => byDate(b, a) },
+  oldest: { label: 'Oldest first', compare: byDate },
+  highest: { label: 'Highest billed', compare: (a: any, b: any) => byBilled(b, a) },
+  lowest: { label: 'Lowest billed', compare: byBilled }
+};
+type SortKey = keyof typeof SORTS;
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -81,10 +91,42 @@ export function Dashboard() {
     }
   };
 
-  const totalOverchargesCaught = (claims || []).reduce((acc: number, c: any) => {
-    const flagged = Number(c.flagged_total || c.ai_reasoning_log?.breakdown?.flagged_total || 0);
-    return acc + flagged;
-  }, 0);
+  const flaggedTotal = (claims ?? []).reduce((sum: number, c: any) => sum + Number(c.flagged_total || 0), 0);
+
+  // What the list shows: narrowed by the search box and the status filter, then sorted.
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('ALL');
+  const [sort, setSort] = useState<SortKey>('newest');
+  const wanted = search.trim().toLowerCase();
+  const visible = (claims ?? [])
+    .filter(c => status === 'ALL' || c.status === status)
+    .filter(c => !wanted || [c.id, c.patient_id, c.policies?.policy_number, c.diagnosis_code].some(v => String(v ?? '').toLowerCase().includes(wanted)))
+    .sort(SORTS[sort].compare);
+
+  const exportCsv = () => {
+    const rows = [
+      ['Claim ID', 'Filed', 'Patient ID', 'Policy', 'Diagnosis', 'Billed', 'Approved', 'Status', 'Flagged', 'Open disputes'],
+      ...visible.map(c => [
+        c.id,
+        new Date(c.created_at).toISOString(),
+        c.patient_id,
+        c.policies?.policy_number,
+        c.diagnosis_code,
+        Number(c.total_billed),
+        c.status === 'PENDING' || c.status === 'PROCESSING' ? '' : Number(c.approved_amount),
+        c.status,
+        Number(c.flagged_total || 0),
+        (c.disputes ?? []).filter((d: any) => d.status === 'OPEN').length
+      ])
+    ];
+    // The BOM makes Excel read the file as UTF-8.
+    const url = URL.createObjectURL(new Blob(['﻿', toCsv(rows)], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `careclaim-${isPatient ? 'bills' : 'claims'}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
@@ -119,35 +161,81 @@ export function Dashboard() {
 
       {/* KPI Strip */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <KpiCard label={isPatient ? 'Total Bills' : 'Total Claims'} value={stats?.total_claims || 0} />
-        <KpiCard label="Avg Turnaround" value={`${(stats?.avg_processing_ms / 1000 || 8.4).toFixed(1)}s`} sub="vs 4-6h manual delay" />
+        <KpiCard label={isPatient ? 'Total Bills' : 'Total Claims'} value={stats ? stats.total_claims : '—'} />
+        {/* A dash until a claim has been adjudicated: there is no turnaround to average yet. */}
+        <KpiCard label="Avg Turnaround" value={stats?.avg_processing_ms ? `${(stats.avg_processing_ms / 1000).toFixed(1)}s` : '—'} sub="Per adjudication run" />
         <KpiCard label="Approval Rate" value={`${(stats?.approval_rate || 0).toFixed(1)}%`} />
         <KpiCard label={isPatient ? 'Insurer Paid' : 'Total Payout'} value={stats?.total_payout ? formatCurrency(stats.total_payout) : '₹0'} />
         <KpiCard
-          label="Fraud & Markup Blocked"
-          value={totalOverchargesCaught ? formatCurrency(totalOverchargesCaught) : '₹0'}
+          label="Flagged for Review"
+          value={flaggedTotal ? formatCurrency(flaggedTotal) : '₹0'}
           highlight
-          sub="Rate card defense"
+          sub={isPatient ? 'Charges worth questioning' : 'Not paid by the insurer'}
         />
       </div>
 
-      {totalOverchargesCaught > 0 && (
-        <div className="bg-moss/10 border border-moss/30 rounded-lg p-3 text-xs text-pine-deep flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-base">🛡</span>
-            <span>
-              <strong>Clinical Rate Guard Active:</strong> CareClaim has prevented <strong>{formatCurrency(totalOverchargesCaught)}</strong> in inflated markups and duplicate consumables across this queue.
-            </span>
-          </div>
-          <span className="font-mono text-[10px] bg-paper px-2 py-0.5 rounded text-moss font-bold border border-moss/20">
-            Protected
+      {flaggedTotal > 0 && (
+        <div className="bg-amber/10 border border-amber/30 rounded-lg p-3 text-xs text-ink">
+          {isPatient ? (
+            <>
+              <strong>{formatCurrency(flaggedTotal)}</strong> on your bills was flagged as a possible billing problem (billed twice, priced
+              well above the usual rate, or similar). Open a bill to see the charges and dispute them with the hospital.
+            </>
+          ) : (
+            <>
+              <strong>{formatCurrency(flaggedTotal)}</strong> across this queue was flagged as a possible billing problem and left out of
+              the payout. Patients can dispute these charges; answer them under Disputes.
+            </>
+          )}
+        </div>
+      )}
+
+      {claims && claims.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="search"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            aria-label="Search claims"
+            placeholder={isPatient ? 'Search by ID, policy or diagnosis' : 'Search by ID, patient, policy or diagnosis'}
+            className="flex-1 min-w-52 bg-paper border border-rule rounded px-3 py-2 text-sm"
+          />
+          <select aria-label="Filter by status" value={status} onChange={e => setStatus(e.target.value)} className="bg-paper border border-rule rounded px-3 py-2 text-sm">
+            {['ALL', 'PENDING', 'PROCESSING', 'APPROVED', 'PARTIAL', 'DENIED'].map(s => (
+              <option key={s} value={s}>{s === 'ALL' ? 'All statuses' : s.charAt(0) + s.slice(1).toLowerCase()}</option>
+            ))}
+          </select>
+          <select aria-label="Sort by" value={sort} onChange={e => setSort(e.target.value as SortKey)} className="bg-paper border border-rule rounded px-3 py-2 text-sm">
+            {Object.entries(SORTS).map(([key, s]) => (
+              <option key={key} value={key}>{s.label}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={visible.length === 0}
+            className="bg-paper hover:bg-bone border border-rule rounded px-3 py-2 text-sm font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50"
+          >
+            <Download size={15} /> Export CSV
+          </button>
+          <span className="text-xs font-mono text-ink-soft">
+            {visible.length} of {claims.length}
           </span>
         </div>
       )}
 
       {/* Claims Table / Empty State */}
       <div className="bg-paper rounded-lg border border-rule overflow-hidden">
-        {(!claims || claims.length === 0) ? (
+        {!claims ? (
+          <div className="p-10 text-center font-mono text-sm text-ink-soft">Loading…</div>
+        ) : visible.length === 0 && claims.length > 0 ? (
+          <div className="p-10 text-center text-sm text-ink-soft">
+            Nothing matches that search and filter.{' '}
+            <button type="button" onClick={() => { setSearch(''); setStatus('ALL'); }} className="text-pine font-medium hover:underline">
+              Show everything
+            </button>
+          </div>
+        ) : claims.length === 0 ? (
           <div className="p-10 text-center space-y-4">
             <div className="w-14 h-14 bg-pine/10 text-pine rounded-full flex items-center justify-center mx-auto text-2xl">
               📄
@@ -193,13 +281,13 @@ export function Dashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-rule">
-              {claims.map((claim, idx) => {
+              {visible.map((claim, idx) => {
                 const openDisputes = (claim.disputes ?? []).filter((d: any) => d.status === 'OPEN').length;
                 return (
                   <motion.tr
                     initial={{ opacity: 0, y: 5 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.05 }}
+                    transition={{ delay: Math.min(idx, 10) * 0.05 }}
                     key={claim.id}
                     onClick={() => navigate(`/claims/${claim.id}`)}
                     className="hover:bg-bone/50 cursor-pointer transition-colors"
@@ -221,7 +309,9 @@ export function Dashboard() {
                       {approvedDisplay(claim)}
                     </td>
                     <td className="p-4">
-                      <StatusStamp status={claim.status} />
+                      {/* A run that died leaves the claim marked PROCESSING; it is waiting to be run again. */}
+                      <StatusStamp status={claim.stalled ? 'PENDING' : claim.status} />
+                      {claim.stalled && <div className="mt-1.5 text-[11px] font-mono text-amber">Last run stopped</div>}
                       {openDisputes > 0 && (
                         <div className="mt-1.5 text-[11px] font-mono text-amber">
                           {openDisputes} open {openDisputes === 1 ? 'dispute' : 'disputes'}

@@ -12,6 +12,8 @@ const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m
 const NewClaim = lazy(() => import('./pages/NewClaim').then(m => ({ default: m.NewClaim })));
 const ClaimView = lazy(() => import('./pages/ClaimView').then(m => ({ default: m.ClaimView })));
 const Disputes = lazy(() => import('./pages/Disputes').then(m => ({ default: m.Disputes })));
+const Analytics = lazy(() => import('./pages/Analytics').then(m => ({ default: m.Analytics })));
+const Verify = lazy(() => import('./pages/Verify').then(m => ({ default: m.Verify })));
 
 // Read as the module loads, before supabase-js consumes the link and clears it from the URL.
 const openedByRecoveryLink = /type=recovery/.test(window.location.hash + window.location.search);
@@ -38,11 +40,14 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/setup" element={<AccountSetup />} />
+        {/* Public: what the QR code on a printed discharge slip opens. */}
+        <Route path="/verify/:id" element={<Verify />} />
         <Route element={<RequireAccount><AppShell /></RequireAccount>}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/claims/new" element={<NewClaim />} />
           <Route path="/claims/:id" element={<ClaimView />} />
           <Route path="/disputes" element={<Disputes />} />
+          <Route path="/analytics" element={<Analytics />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

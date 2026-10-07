@@ -17,21 +17,26 @@ const billText = (max) =>
     .max(max)
     .regex(/^[^\u0000-\u001f\u007f]*$/, 'Must be a single line of plain text');
 
+const billLines = z
+  .array(
+    z.object({
+      item_name: billText(200),
+      cost: z.number().positive().max(MAX_AMOUNT),
+    })
+  )
+  .min(1, 'Bill must contain at least one line item')
+  .max(200, 'A bill can have at most 200 line items');
+
+/** A planned bill to estimate against a policy; nothing is stored. */
+export const estimateSchema = z.object({ policy_id: z.string().uuid(), raw_bill_data: billLines });
+
 /** Spec-mandated schema for claim submission. */
 export const claimSubmissionSchema = z
   .object({
     patient_id: billText(255), // VARCHAR(255)
     policy_id: z.string().uuid(),
     diagnosis_code: billText(100), // VARCHAR(100)
-    raw_bill_data: z
-      .array(
-        z.object({
-          item_name: billText(200),
-          cost: z.number().positive().max(MAX_AMOUNT),
-        })
-      )
-      .min(1, 'Bill must contain at least one line item')
-      .max(200, 'A bill can have at most 200 line items'),
+    raw_bill_data: billLines,
     total_billed: z.number().positive().max(MAX_AMOUNT, 'total_billed exceeds the supported maximum'),
   })
   .refine(

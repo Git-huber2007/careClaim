@@ -9,6 +9,12 @@ import {
   processClaim,
   listPolicies,
   getStats,
+  getAnalytics,
+  listReferencePrices,
+  estimatePayout,
+  verifyClaim,
+  attachDocument,
+  getDocument,
 } from '../controllers/claimsController.js';
 import { createDispute, listDisputes, respondToDispute } from '../controllers/disputesController.js';
 import { createProfile, getMe } from '../controllers/profileController.js';
@@ -22,13 +28,17 @@ meRouter.post('/profile', asyncHandler(createProfile));
 export const claimsRouter = Router();
 claimsRouter.use(requireAuth, requireProfile);
 
+// A scanned document arrives as base64 inside JSON; only the two routes that take one accept a large body.
+const documentBody = express.json({ limit: '15mb' });
+
 claimsRouter.post('/', asyncHandler(createClaim));
-// The scanned document arrives as base64 inside JSON; this is the only route that needs a large body.
-claimsRouter.post('/extract-bill', express.json({ limit: '15mb' }), asyncHandler(extractBill));
+claimsRouter.post('/extract-bill', documentBody, asyncHandler(extractBill));
 claimsRouter.get('/', asyncHandler(listClaims));
 claimsRouter.get('/:id', asyncHandler(getClaim));
 claimsRouter.post('/:id/process', asyncHandler(processClaim));
 claimsRouter.post('/:id/disputes', requireRole('PATIENT'), asyncHandler(createDispute));
+claimsRouter.post('/:id/document', documentBody, asyncHandler(attachDocument));
+claimsRouter.get('/:id/document', asyncHandler(getDocument));
 
 export const disputesRouter = Router();
 disputesRouter.use(requireAuth, requireProfile);
@@ -42,3 +52,16 @@ statsRouter.get('/', asyncHandler(getStats));
 export const policiesRouter = Router();
 policiesRouter.use(requireAuth, requireProfile);
 policiesRouter.get('/', asyncHandler(listPolicies));
+
+// Read-only views over the caller's claims and the shared rate card, and the no-model estimate.
+// Mounted on /api itself, so the sign-in check sits on each route instead of on
+// the router, where it would also answer for paths that do not exist.
+export const insightsRouter = Router();
+const signedIn = [requireAuth, requireProfile];
+insightsRouter.get('/analytics', signedIn, asyncHandler(getAnalytics));
+insightsRouter.get('/reference-prices', signedIn, asyncHandler(listReferencePrices));
+insightsRouter.post('/estimate', signedIn, asyncHandler(estimatePayout));
+
+// Public: what the QR code on a discharge slip opens.
+export const verifyRouter = Router();
+verifyRouter.get('/:id', asyncHandler(verifyClaim));

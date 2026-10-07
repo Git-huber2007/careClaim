@@ -4,6 +4,7 @@ import { fetchApi, extractBill } from '../lib/api';
 import { useAccount } from '../lib/account';
 import { toBillLine } from '../lib/claims';
 import { formatCurrency } from '../lib/format';
+import { ICD10_CODES, describeIcd10, looksLikeIcd10 } from '../lib/icd10';
 import { Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -17,6 +18,29 @@ interface BillRow {
 }
 
 const BLANK_ROW: BillRow = { item_name: '', cost: 0, quantity: 1 };
+
+/** POST /api/estimate: the payout math for a planned bill, and the lines the policy names as excluded. */
+interface Estimate {
+  breakdown: {
+    total_billed: number;
+    excluded_total: number;
+    copay_percentage: number;
+    copay_amount: number;
+    cap_reduction: number;
+    approved_amount: number;
+    patient_payable: number;
+  };
+  excluded_lines: { line: number; item_name: string; cost: number; reason: string }[];
+}
+
+function EstimateRow({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
+  return (
+    <div className={`flex justify-between gap-3 ${strong ? 'font-bold text-pine-deep' : ''}`}>
+      <span className={strong ? '' : 'text-ink-soft'}>{label}</span>
+      <span>{value < 0 ? `− ${formatCurrency(-value)}` : formatCurrency(value)}</span>
+    </div>
+  );
+}
 
 /** For a hospital: the one policy with this number, or null. The backend answers for that number only. */
 const lookUpPolicy = (number: string) =>
@@ -36,6 +60,10 @@ export function NewClaim() {
   const [policies, setPolicies] = useState<any[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  // The document the lines were scanned from; it is attached to the claim once the claim exists.
+  const [scanned, setScanned] = useState<{ name: string; fileBase64: string; mimeType: string } | null>(null);
+  const [estimate, setEstimate] = useState<(Estimate & { billKey: string }) | null>(null);
+  const [estimating, setEstimating] = useState(false);
 
   // A patient is given the policy they hold.
   useEffect(() => {
@@ -70,6 +98,8 @@ export function NewClaim() {
 
   const billLines = items.map(toBillLine);
   const totalBilled = Math.round(billLines.reduce((sum, line) => sum + line.cost, 0) * 100) / 100;
+  // An estimate is shown only for the bill and policy it was worked out for.
+  const billKey = JSON.stringify([policyNumber.trim().toLowerCase(), billLines]);
 
   const updateItem = (idx: number, change: Partial<BillRow>) =>
     setItems(rows => rows.map((row, i) => (i === idx ? { ...row, ...change } : row)));
@@ -86,6 +116,7 @@ export function NewClaim() {
       return;
     }
     setExtracting(true);
+    setScanned(null); // the form is about to describe this document, or (if the scan fails) none
     const toastId = toast.loading('Extracting bill lines with Gemini Vision...');
     try {
       const base64 = await new Promise<string>((resolve, reject) => {
@@ -95,6 +126,7 @@ export function NewClaim() {
         reader.readAsDataURL(file);
       });
       const data = await extractBill(base64, file.type);
+      setScanned({ name: file.name, fileBase64: base64, mimeType: file.type });
       if (data.items?.length) {
         setItems(data.items.map((it: any) => ({ item_name: it.item_name, cost: it.cost, quantity: 1 })));
       }
@@ -110,21 +142,47 @@ export function NewClaim() {
     }
   };
 
+  const linesComplete = () => {
+    if (items.every(row => row.item_name.trim() && row.cost > 0)) return true;
+    toast.error('Give every bill line a name and an amount, or remove it.');
+    return false;
+  };
+
+  /** The policy for the number in the form, or null after telling the user there is none. */
+  const resolvePolicy = async () => {
+    // The preview's lookup is debounced and fails quietly, so it may not have
+    // an answer yet for a number that exists: ask again before saying it does not.
+    const policy = policyData ?? (isPatient ? null : await lookUpPolicy(policyNumber.trim()));
+    if (!policy) toast.error('No policy found with that number');
+    return policy;
+  };
+
+  // What the policy would pay for these lines if every charge is accepted. No AI run, nothing saved.
+  const runEstimate = async () => {
+    if (!linesComplete()) return;
+    setEstimating(true);
+    try {
+      const policy = await resolvePolicy();
+      if (!policy) return;
+      const res = await fetchApi('/api/estimate', {
+        method: 'POST',
+        body: JSON.stringify({ policy_id: policy.id, raw_bill_data: billLines })
+      });
+      setEstimate({ ...res.estimate, billKey });
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setEstimating(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (items.some(row => !row.item_name.trim() || !(row.cost > 0))) {
-      toast.error('Give every bill line a name and an amount, or remove it.');
-      return;
-    }
+    if (!linesComplete()) return;
     setSubmitting(true);
     try {
-      // The preview's lookup is debounced and fails quietly, so it may not have
-      // an answer yet for a number that exists: ask again before saying it does not.
-      const policy = policyData ?? (isPatient ? null : await lookUpPolicy(policyNumber.trim()));
-      if (!policy) {
-        toast.error('No policy found with that number');
-        return;
-      }
+      const policy = await resolvePolicy();
+      if (!policy) return;
       // The backend takes the policy's id (not its number) and { item_name, cost } bill lines.
       const { claim } = await fetchApi('/api/claims', {
         method: 'POST',
@@ -136,7 +194,13 @@ export function NewClaim() {
           total_billed: totalBilled
         })
       });
-      toast.success(isPatient ? 'Bill saved' : 'Claim submitted successfully');
+      // The claim is saved either way; a document that fails to attach is reported, not fatal.
+      const attached = !scanned || (await fetchApi(`/api/claims/${claim.id}/document`, {
+        method: 'POST',
+        body: JSON.stringify({ fileBase64: scanned.fileBase64, mimeType: scanned.mimeType })
+      }).then(() => true, () => false));
+      if (attached) toast.success(isPatient ? 'Bill saved' : 'Claim submitted successfully');
+      else toast.warning('Saved, but the scanned document could not be attached.');
       navigate(`/claims/${claim.id}`);
     } catch (err: any) {
       toast.error(err.message);
@@ -147,6 +211,8 @@ export function NewClaim() {
 
   // Scenarios use the mock policies seeded by supabase/schema.sql.
   const loadScenario = (scenario: number) => {
+    // A sample replaces the whole form, so a document scanned earlier no longer belongs to it.
+    if (scenario >= 1 && scenario <= 3) setScanned(null);
     if (scenario === 1) {
       setPolicyNumber('HDFC-118-SILVER');
       setPatientId('PAT-1002');
@@ -218,7 +284,16 @@ export function NewClaim() {
             </div>
             <div>
               <label htmlFor="claim-diagnosis" className="block text-xs font-mono uppercase text-ink-soft mb-1">Diagnosis Code</label>
-              <input id="claim-diagnosis" required value={diagnosis} onChange={e => setDiagnosis(e.target.value)} placeholder="ICD-10, e.g. K35.80" className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm" />
+              <input id="claim-diagnosis" required list="icd10-codes" autoComplete="off" value={diagnosis} onChange={e => setDiagnosis(e.target.value)} placeholder="ICD-10, e.g. K35.80" aria-describedby="claim-diagnosis-hint" className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm" />
+              <datalist id="icd10-codes">
+                {Object.entries(ICD10_CODES).map(([code, name]) => (
+                  <option key={code} value={code}>{name}</option>
+                ))}
+              </datalist>
+              {/* Advice only: the list is short, and a scanned bill may carry a code written another way. */}
+              <p id="claim-diagnosis-hint" className={`text-xs mt-1 min-h-4 ${diagnosis.trim() && !looksLikeIcd10(diagnosis) ? 'text-amber' : 'text-ink-soft'}`}>
+                {describeIcd10(diagnosis) ?? (diagnosis.trim() && !looksLikeIcd10(diagnosis) ? 'This does not look like an ICD-10 code (for example K35.80). It will be saved as typed.' : '')}
+              </p>
             </div>
           </div>
 
@@ -230,7 +305,16 @@ export function NewClaim() {
                   <Upload size={14} /> Scan Bill Document (PDF or Photo)
                 </span>
                 <p className="text-[11px] text-ink-soft font-mono mt-0.5">
-                  Gemini Vision automatically extracts line items, costs & diagnosis code.
+                  {scanned ? (
+                    <>
+                      {scanned.name} will be kept with this {isPatient ? 'bill' : 'claim'} as the original document.{' '}
+                      <button type="button" onClick={() => setScanned(null)} className="text-vermilion font-medium hover:underline">
+                        Do not attach it
+                      </button>
+                    </>
+                  ) : (
+                    'Gemini Vision automatically extracts line items, costs & diagnosis code.'
+                  )}
                 </p>
               </div>
               <input
@@ -305,6 +389,43 @@ export function NewClaim() {
           >
             {submitting ? 'Submitting...' : isPatient ? 'Save and Check Bill' : 'Submit Claim'}
           </button>
+
+          <button
+            type="button"
+            onClick={runEstimate}
+            disabled={estimating || items.length === 0}
+            className="w-full bg-paper hover:bg-bone border border-rule text-pine-deep rounded px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {estimating ? 'Estimating...' : 'Estimate Payout First'}
+          </button>
+
+          {estimate?.billKey === billKey && (
+            <div className="bg-paper p-5 rounded-lg border-t-4 border-t-pine border border-rule shadow-sm text-sm" aria-live="polite">
+              <div className="text-xs font-mono uppercase tracking-wider text-pine mb-3">Estimate · nothing saved</div>
+              <div className="space-y-2 font-mono">
+                <EstimateRow label="Bill total" value={estimate.breakdown.total_billed} />
+                {estimate.breakdown.excluded_total > 0 && <EstimateRow label="Not payable (see below)" value={-estimate.breakdown.excluded_total} />}
+                {estimate.breakdown.copay_amount > 0 && <EstimateRow label={`Copay (${estimate.breakdown.copay_percentage}%)`} value={-estimate.breakdown.copay_amount} />}
+                {estimate.breakdown.cap_reduction > 0 && <EstimateRow label="Above the coverage limit" value={-estimate.breakdown.cap_reduction} />}
+                <div className="border-t border-rule pt-2 space-y-2">
+                  <EstimateRow label="Insurer would pay up to" value={estimate.breakdown.approved_amount} strong />
+                  <EstimateRow label={isPatient ? 'You would pay at least' : 'Patient would pay at least'} value={estimate.breakdown.patient_payable} strong />
+                </div>
+              </div>
+              {estimate.excluded_lines.length > 0 && (
+                <ul className="mt-3 space-y-1 text-xs text-amber">
+                  {estimate.excluded_lines.map(l => (
+                    <li key={l.line}>Line {l.line}, {l.item_name}: {l.reason}</li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-3 text-xs text-ink-soft">
+                Worked out from the policy's terms alone, as if the patient holds this policy and every other charge is
+                accepted. The adjudication can still flag charges, which lowers the payout. Change the bill and estimate
+                again to compare.
+              </p>
+            </div>
+          )}
 
           {policyData ? (
             <div className="bg-paper p-5 rounded-lg border-t-4 border-t-moss border border-rule shadow-sm">

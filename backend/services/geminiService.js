@@ -134,6 +134,46 @@ function describeError(err) {
   }
 }
 
+const MODELS = [config.geminiModel, config.geminiFallbackModel].filter(Boolean);
+
+const isQuotaError = (err) =>
+  (err?.status ?? err?.code) === 429 || /RESOURCE_EXHAUSTED|quota/i.test(err?.message || '');
+
+// A model that answered "quota exhausted" is skipped until this time. One
+// minute, because the same answer is given for a per-minute limit, which is
+// over by then; a spent daily quota costs one quick refused call a minute.
+const QUOTA_COOLDOWN_MS = 60 * 1000;
+const quotaBlockedUntil = new Map();
+
+/**
+ * One model request: the configured model, and the fallback model when the
+ * first has no quota left. Answers with the response and the model that gave it.
+ */
+async function generate(request) {
+  const available = MODELS.filter((m) => (quotaBlockedUntil.get(m) ?? 0) <= Date.now());
+  // True from the start when a model is being skipped for having run out a moment ago.
+  let outOfQuota = available.length < MODELS.length;
+  for (const model of available.length ? available : MODELS) {
+    try {
+      const response = await withTimeout(ai.models.generateContent({ model, ...request }), 60_000);
+      return { response, model };
+    } catch (err) {
+      if (isQuotaError(err)) {
+        outOfQuota = true;
+        quotaBlockedUntil.set(model, Date.now() + QUOTA_COOLDOWN_MS);
+        console.warn(`[gemini] ${model} has no quota left:`, describeError(err));
+      } else if (outOfQuota) {
+        // The stand-in failed for its own reasons; the cause the user can act on is still the quota.
+        console.warn(`[gemini] fallback ${model} failed:`, describeError(err));
+        break;
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new HttpError(503, 'The AI service has used up its request quota for now. Please try again in a minute.');
+}
+
 /**
  * Runs the Gemini adjudication agent. Retries once on transient / malformed output.
  */
@@ -145,29 +185,26 @@ export async function runAdjudicationAgent(claim, policy, referencePrices = []) 
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const response = await withTimeout(
-        ai.models.generateContent({
-          model: config.geminiModel,
-          contents,
-          config: {
-            systemInstruction: SYSTEM_PROMPT,
-            responseMimeType: 'application/json',
-            responseSchema: RESPONSE_SCHEMA,
-            temperature: 0.1,
-          },
-        }),
-        60_000
-      );
+      const { response, model } = await generate({
+        contents,
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          responseSchema: RESPONSE_SCHEMA,
+          temperature: 0.1,
+        },
+      });
 
       const text = response.text;
       if (!text) throw new Error('Empty response from Gemini');
 
       const parsed = adjudicationResultSchema.parse(JSON.parse(text));
-      return { result: parsed, model: config.geminiModel, attempts: attempt };
+      return { result: parsed, model, attempts: attempt };
     } catch (err) {
       lastError = err;
       const status = err?.status ?? err?.code;
-      const retryable = !status || status === 429 || status >= 500 || err instanceof SyntaxError || err?.name === 'ZodError';
+      // An HttpError is already a final answer (timed out, or no model has quota left).
+      const retryable = !(err instanceof HttpError) && (!status || status >= 500 || err instanceof SyntaxError || err?.name === 'ZodError');
       console.warn(`[gemini] attempt ${attempt} failed:`, describeError(err));
       if (!retryable || attempt === 2) break;
       await new Promise((r) => setTimeout(r, 1200));
@@ -224,34 +261,30 @@ export async function extractBillFromDocument({ fileBase64, mimeType }) {
   const cleanBase64 = fileBase64.includes(',') ? fileBase64.split(',')[1] : fileBase64;
 
   try {
-    const response = await withTimeout(
-      ai.models.generateContent({
-        model: config.geminiModel,
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                inlineData: {
-                  mimeType,
-                  data: cleanBase64,
-                },
+    const { response } = await generate({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                mimeType,
+                data: cleanBase64,
               },
-              {
-                text: 'Extract all itemized bill line items, costs in INR, total billed, patient ID, and diagnosis from this medical bill document.',
-              },
-            ],
-          },
-        ],
-        config: {
-          systemInstruction: EXTRACT_SYSTEM_PROMPT,
-          responseMimeType: 'application/json',
-          responseSchema: EXTRACT_RESPONSE_SCHEMA,
-          temperature: 0.1,
+            },
+            {
+              text: 'Extract all itemized bill line items, costs in INR, total billed, patient ID, and diagnosis from this medical bill document.',
+            },
+          ],
         },
-      }),
-      60_000
-    );
+      ],
+      config: {
+        systemInstruction: EXTRACT_SYSTEM_PROMPT,
+        responseMimeType: 'application/json',
+        responseSchema: EXTRACT_RESPONSE_SCHEMA,
+        temperature: 0.1,
+      },
+    });
 
     const text = response.text;
     if (!text) throw new Error('Empty extraction response from Gemini');

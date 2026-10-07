@@ -1,7 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import { config, missingEnv } from './config.js';
-import { claimsRouter, disputesRouter, meRouter, policiesRouter, statsRouter } from './routes/claims.js';
+import {
+  claimsRouter,
+  disputesRouter,
+  insightsRouter,
+  meRouter,
+  policiesRouter,
+  statsRouter,
+  verifyRouter,
+} from './routes/claims.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -23,12 +31,13 @@ app.use(
     credentials: true,
   })
 );
-// Bodies are small JSON everywhere except the bill scan, whose route parses
-// its own larger body only after the caller is authenticated (routes/claims.js).
+// Bodies are small JSON everywhere except the two routes that take a scanned
+// bill, which parse their own larger body only after the caller is
+// authenticated (routes/claims.js).
 // 1 MB holds the largest claim the validation accepts (200 lines of 200 characters).
 const json = express.json({ limit: '1mb' });
-const isBillScan = (req) => req.path.replace(/\/+$/, '').toLowerCase() === '/api/claims/extract-bill';
-app.use((req, res, next) => (isBillScan(req) ? next() : json(req, res, next)));
+const takesDocument = (req) => /^\/api\/claims\/(extract-bill|[0-9a-f-]{36}\/document)$/.test(req.path.replace(/\/+$/, '').toLowerCase());
+app.use((req, res, next) => (takesDocument(req) ? next() : json(req, res, next)));
 
 app.get('/api/health', (_req, res) => {
   let supabaseHost = null;
@@ -49,6 +58,8 @@ app.use('/api/claims', claimsRouter);
 app.use('/api/disputes', disputesRouter);
 app.use('/api/policies', policiesRouter);
 app.use('/api/stats', statsRouter);
+app.use('/api/verify', verifyRouter);
+app.use('/api', insightsRouter);
 
 app.use(notFound);
 app.use(errorHandler);

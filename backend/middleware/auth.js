@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../services/supabase.js';
-import { HttpError } from '../utils/http.js';
+import { HttpError, dbError } from '../utils/http.js';
 
 /**
  * Verifies the Supabase JWT from the Authorization header.
@@ -38,30 +38,13 @@ export async function requireAuth(req, _res, next) {
 
 /** Reads the caller's profile row; null until they finish account setup. */
 export async function loadProfile(userId) {
-  let { data, error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('profiles')
     .select('id, role, patient_id, hospital_org, created_at')
     .eq('id', userId)
     .maybeSingle();
 
-  // If hospital_org column does not exist yet (code 42703 or PGRST204), retry without it
-  if (error && (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('hospital_org'))) {
-    const retry = await supabaseAdmin
-      .from('profiles')
-      .select('id, role, patient_id, created_at')
-      .eq('id', userId)
-      .maybeSingle();
-    data = retry.data;
-    error = retry.error;
-  }
-
-  if (error) {
-    // 42P01 / PGRST205: the profiles table is missing, i.e. the schema predates roles.
-    if (error.code === '42P01' || error.code === 'PGRST205') {
-      throw new HttpError(503, 'Database schema is out of date. Re-run supabase/schema.sql in the Supabase SQL Editor.');
-    }
-    throw new HttpError(500, `Database error: ${error.message}`);
-  }
+  if (error) throw dbError(error);
   return data;
 }
 

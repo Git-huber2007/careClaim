@@ -6,12 +6,14 @@ const NAV = {
   HOSPITAL: [
     { to: '/dashboard', label: 'Claims' },
     { to: '/claims/new', label: 'New Claim' },
-    { to: '/disputes', label: 'Disputes' }
+    { to: '/disputes', label: 'Disputes' },
+    { to: '/analytics', label: 'Analytics' }
   ],
   PATIENT: [
     { to: '/dashboard', label: 'My Bills' },
     { to: '/claims/new', label: 'Check a Bill' },
-    { to: '/disputes', label: 'My Disputes' }
+    { to: '/disputes', label: 'My Disputes' },
+    { to: '/analytics', label: 'Analytics' }
   ]
 };
 

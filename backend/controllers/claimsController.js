@@ -1,12 +1,18 @@
 import { config } from '../config.js';
 import { supabaseAdmin } from '../services/supabase.js';
 import { runAdjudicationAgent, extractBillFromDocument } from '../services/geminiService.js';
-import { computeAdjudication } from '../services/adjudicationMath.js';
-import { claimSubmissionSchema, uuidParamSchema, billExtractionSchema, policyLookupSchema } from '../validation/schemas.js';
-import { HttpError } from '../utils/http.js';
+import { computeAdjudication, round2 } from '../services/adjudicationMath.js';
+import {
+  claimSubmissionSchema,
+  uuidParamSchema,
+  billExtractionSchema,
+  policyLookupSchema,
+  estimateSchema,
+} from '../validation/schemas.js';
+import { HttpError, dbError, schemaOutOfDate } from '../utils/http.js';
 
 const CLAIM_LIST_COLUMNS =
-  'id, patient_id, policy_id, diagnosis_code, total_billed, status, approved_amount, source, created_at, policies(policy_number), disputes(status), flagged_total:ai_reasoning_log->breakdown->flagged_total';
+  'id, patient_id, policy_id, diagnosis_code, total_billed, status, approved_amount, source, created_at, updated_at, policies(policy_number), disputes(status), flagged_total:ai_reasoning_log->breakdown->flagged_total';
 
 const money = (n) =>
   Number(n ?? 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 });
@@ -16,17 +22,14 @@ const isPatient = (req) => req.profile.role === 'PATIENT';
 
 /**
  * The service role bypasses RLS, so this is the access rule for a claim:
- *   hospital → claims that hospital account filed
+ *   hospital → claims filed by that account or by anyone in its organization
  *   patient  → claims filed for their patient ID, plus bills they checked themselves
  */
 function canAccess(claim, req) {
   if (!isPatient(req)) {
     if (claim.source !== 'HOSPITAL') return false;
-    // Teammates in the same hospital organization can access and process claims
-    if (req.profile?.hospital_org && claim.hospital_org && req.profile.hospital_org === claim.hospital_org) {
-      return true;
-    }
-    return claim.hospital_user_id === req.user.id;
+    const org = req.profile.hospital_org;
+    return claim.hospital_user_id === req.user.id || Boolean(org && org === claim.hospital_org);
   }
   if (claim.source === 'PATIENT') return claim.patient_user_id === req.user.id;
   // Exact, like the list query in scopedClaims: createClaim stores the ID as the patient's record spells it.
@@ -64,6 +67,7 @@ function withoutPolicyTerms(log) {
       cap_reduction: b.cap_reduction,
       approved_amount: b.approved_amount,
       patient_payable: b.patient_payable,
+      waived_total: b.waived_total,
     },
     processed_at: log.processed_at,
   };
@@ -96,19 +100,12 @@ function present(claim, req) {
 }
 
 /** PostgREST answers at most 1000 rows at a time; read every page so lists and totals are complete. */
-async function allRows(buildQuery, fallbackQuery) {
+async function allRows(buildQuery) {
   const PAGE = 1000;
   const rows = [];
-  let currentBuilder = buildQuery;
   for (let from = 0; ; from += PAGE) {
-    let { data, error } = await currentBuilder().range(from, from + PAGE - 1);
-    if (error && fallbackQuery && (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('hospital_org') || error.message?.includes('logic tree'))) {
-      currentBuilder = fallbackQuery;
-      const retry = await currentBuilder().range(from, from + PAGE - 1);
-      data = retry.data;
-      error = retry.error;
-    }
-    if (error) throw new HttpError(500, `Database error: ${error.message}`);
+    const { data, error } = await buildQuery().range(from, from + PAGE - 1);
+    if (error) throw dbError(error);
     rows.push(...data);
     if (data.length < PAGE) return rows;
   }
@@ -121,7 +118,7 @@ export async function getAccessibleClaim(claimId, req) {
     .eq('id', claimId)
     .maybeSingle();
 
-  if (error) throw new HttpError(500, `Database error: ${error.message}`);
+  if (error) throw dbError(error);
   if (!data || !canAccess(data, req)) throw new HttpError(404, 'Claim not found.');
   return data;
 }
@@ -135,7 +132,7 @@ async function knownSpelling(patientId) {
 
   const { data, error } = await supabaseAdmin.from('policies').select('patient_id').ilike('patient_id', patientId);
 
-  if (error) throw new HttpError(500, `Database error: ${error.message}`);
+  if (error) throw dbError(error);
   return data.find((p) => norm(p.patient_id) === norm(patientId))?.patient_id ?? patientId;
 }
 
@@ -149,7 +146,7 @@ export async function createClaim(req, res) {
     .eq('id', body.policy_id)
     .maybeSingle();
 
-  if (policyErr) throw new HttpError(500, `Database error: ${policyErr.message}`);
+  if (policyErr) throw dbError(policyErr);
   if (!policy) throw new HttpError(400, 'Referenced policy does not exist.', [{ path: 'policy_id', message: 'Unknown policy' }]);
 
   const holderMatches = (id) => norm(id) === norm(policy.patient_id);
@@ -171,75 +168,78 @@ export async function createClaim(req, res) {
     };
   }
 
-  const claimInsert = {
-    ...owner,
-    policy_id: body.policy_id,
-    diagnosis_code: body.diagnosis_code,
-    raw_bill_data: body.raw_bill_data,
-    total_billed: body.total_billed,
-    status: 'PENDING',
-  };
-
-  let { data, error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('claims')
-    .insert(claimInsert)
+    .insert({
+      ...owner,
+      policy_id: body.policy_id,
+      diagnosis_code: body.diagnosis_code,
+      raw_bill_data: body.raw_bill_data,
+      total_billed: body.total_billed,
+      status: 'PENDING',
+    })
     .select(CLAIM_LIST_COLUMNS)
     .single();
 
-  // If hospital_org column has not been added to DB schema yet (code 42703), retry without it
-  if (error && error.code === '42703') {
-    delete claimInsert.hospital_org;
-    const retry = await supabaseAdmin
-      .from('claims')
-      .insert(claimInsert)
-      .select(CLAIM_LIST_COLUMNS)
-      .single();
-    data = retry.data;
-    error = retry.error;
-  }
-
-  if (error) throw new HttpError(500, `Failed to create claim: ${error.message}`);
+  if (error) throw dbError(error, 'Failed to create claim');
   res.status(201).json({ claim: data });
+}
+
+// Model requests made today, per account (only counted when a daily cap is configured).
+const aiRequests = { day: '', counts: new Map() };
+
+/** Counts one model request against the caller's daily cap, or refuses it. */
+function spendAiRequest(userId) {
+  const limit = config.aiDailyLimitPerUser;
+  if (!limit) return;
+  const today = new Date().toISOString().slice(0, 10);
+  if (aiRequests.day !== today) {
+    aiRequests.day = today;
+    aiRequests.counts.clear();
+  }
+  const used = aiRequests.counts.get(userId) ?? 0;
+  if (used >= limit) {
+    throw new HttpError(429, `This account has used its ${limit} AI requests for today. The count resets at midnight UTC.`);
+  }
+  aiRequests.counts.set(userId, used + 1);
 }
 
 /** POST /api/claims/extract-bill — extract line items from image or PDF via Gemini Vision */
 export async function extractBill(req, res) {
   const body = billExtractionSchema.parse(req.body);
+  spendAiRequest(req.user.id);
   const extracted = await extractBillFromDocument(body);
   res.json({ extracted });
 }
 
+/** A value inside a PostgREST filter: quoted, with the quote and the escape character escaped. */
+export const quoted =(value) => `"${String(value).replace(/[\\"]/g, '\\$&')}"`;
 
 /** The claims the caller may see (the list-level form of canAccess). */
-function scopedClaims(req, columns, fallbackWithoutOrg = false) {
+function scopedClaims(req, columns) {
   const query = supabaseAdmin.from('claims').select(columns);
   if (isPatient(req)) {
     return query.eq('patient_id', req.profile.patient_id).or(`source.eq.HOSPITAL,patient_user_id.eq.${req.user.id}`);
   }
   // Hospital staff share their organization's claim queue
-  if (!fallbackWithoutOrg && req.profile?.hospital_org) {
-    const escapedOrg = req.profile.hospital_org.replace(/"/g, '\\"');
-    return query.eq('source', 'HOSPITAL').or(`hospital_org.eq."${escapedOrg}",hospital_user_id.eq.${req.user.id}`);
+  const org = req.profile.hospital_org;
+  if (org) {
+    return query.eq('source', 'HOSPITAL').or(`hospital_org.eq.${quoted(org)},hospital_user_id.eq.${req.user.id}`);
   }
   return query.eq('source', 'HOSPITAL').eq('hospital_user_id', req.user.id);
 }
 
 /** GET /api/claims */
 export async function listClaims(req, res) {
-  const claims = await allRows(
-    () => scopedClaims(req, CLAIM_LIST_COLUMNS).order('created_at', { ascending: false }).order('id'),
-    () => scopedClaims(req, CLAIM_LIST_COLUMNS, true).order('created_at', { ascending: false }).order('id')
-  );
-  res.json({ claims });
+  const claims = await allRows(() => scopedClaims(req, CLAIM_LIST_COLUMNS).order('created_at', { ascending: false }).order('id'));
+  // `stalled` as on a single claim: PROCESSING, but the run behind it died.
+  res.json({ claims: claims.map((c) => (c.status === 'PROCESSING' ? { ...c, stalled: isStalled(c) } : c)) });
 }
 
 /** GET /api/stats — headline numbers over the caller's own claims */
 export async function getStats(req, res) {
   const cols = 'status, approved_amount, duration_ms:ai_reasoning_log->duration_ms';
-  const data = await allRows(
-    () => scopedClaims(req, cols).order('id'),
-    () => scopedClaims(req, cols, true).order('id')
-  );
+  const data = await allRows(() => scopedClaims(req, cols).order('id'));
 
   const adjudicated = data.filter((c) => c.status !== 'PENDING' && c.status !== 'PROCESSING');
   const paid = adjudicated.filter((c) => c.status !== 'DENIED');
@@ -259,14 +259,29 @@ export async function getStats(req, res) {
 // model run and overwrite the first verdict.
 const inFlight = new Set();
 
+// A run also marks its claim PROCESSING in the database, so another server
+// instance will not start it too. If the server stops mid-run that mark is
+// never cleared; after this long (a run takes about two minutes at worst) the
+// claim counts as stalled and can be run again.
+const STALE_LOCK_MS = 3 * 60 * 1000;
+const lockIsStale = (claim) =>
+  claim.status === 'PROCESSING' && !(Date.now() - Date.parse(claim.updated_at) <= STALE_LOCK_MS);
+// Function declaration, so the list handler above can use it: stalled = marked, old, and not running here.
+function isStalled(claim) {
+  return !inFlight.has(claim.id) && lockIsStale(claim);
+}
+
 /** GET /api/claims/:id */
 export async function getClaim(req, res) {
   const { id } = uuidParamSchema.parse(req.params);
   // Read before the row: a run that finishes while the query is out must not
   // pair a stale PENDING row with "nothing is running".
-  const adjudicating = inFlight.has(id);
+  const running = inFlight.has(id);
   const claim = await getAccessibleClaim(id, req);
-  res.json({ claim: { ...present(claim, req), adjudicating } });
+  const stalled = !running && lockIsStale(claim);
+  res.json({
+    claim: { ...present(claim, req), adjudicating: running || (claim.status === 'PROCESSING' && !stalled), stalled },
+  });
 }
 
 /**
@@ -282,76 +297,39 @@ async function adjudicate(id, req, { onStage = () => {}, onLog = () => {} } = {}
     throw new HttpError(403, 'Only the hospital that filed this claim can run its adjudication.');
   }
 
-  // Detect stale PROCESSING lock (e.g. server crashed/restarted > 5 minutes ago)
-  const isStuckProcessing = claim.status === 'PROCESSING' && (
-    (Date.now() - new Date(claim.updated_at || claim.created_at).getTime()) > 5 * 60 * 1000
-  );
-
-  if (inFlight.has(claim.id) || (claim.status === 'PROCESSING' && !isStuckProcessing)) {
-    throw new HttpError(409, 'This claim is already being adjudicated. The verdict appears when that run finishes.');
-  }
+  const alreadyRunning = 'This claim is already being adjudicated. The verdict appears when that run finishes.';
+  const stalled = isStalled(claim);
+  if (inFlight.has(claim.id) || (claim.status === 'PROCESSING' && !stalled)) throw new HttpError(409, alreadyRunning);
   // A saved verdict is final: patients raise disputes against its line flags.
-  if (claim.status !== 'PENDING' && !isStuckProcessing) {
-    throw new HttpError(409, 'This claim has already been adjudicated.');
-  }
+  if (claim.status !== 'PENDING' && !stalled) throw new HttpError(409, 'This claim has already been adjudicated.');
 
-  // Atomic database status transition: PENDING (or stale PROCESSING) -> PROCESSING
-  let dbLockAcquired = false;
-  try {
-    let updateQuery = supabaseAdmin
-      .from('claims')
-      .update({ status: 'PROCESSING', updated_at: new Date().toISOString() })
-      .eq('id', claim.id);
+  // Take the claim in the database: PENDING → PROCESSING, or a stalled run's
+  // PROCESSING → PROCESSING with a new time. The update only matches the row
+  // as it was just read, so of two servers trying at once, one gets nothing.
+  let lock = supabaseAdmin
+    .from('claims')
+    .update({ status: 'PROCESSING', updated_at: new Date().toISOString() })
+    .eq('id', claim.id)
+    .eq('status', claim.status);
+  if (stalled) lock = claim.updated_at ? lock.eq('updated_at', claim.updated_at) : lock.is('updated_at', null);
 
-    if (isStuckProcessing) {
-      updateQuery = updateQuery.eq('status', 'PROCESSING');
-    } else {
-      updateQuery = updateQuery.eq('status', 'PENDING');
-    }
-
-    let { data: locked, error: lockErr } = await updateQuery
-      .select('id, status')
-      .maybeSingle();
-
-    // If updated_at column does not exist yet (code 42703), retry without updated_at
-    if (lockErr && lockErr.code === '42703') {
-      let retryQuery = supabaseAdmin
-        .from('claims')
-        .update({ status: 'PROCESSING' })
-        .eq('id', claim.id);
-
-      if (isStuckProcessing) {
-        retryQuery = retryQuery.eq('status', 'PROCESSING');
-      } else {
-        retryQuery = retryQuery.eq('status', 'PENDING');
-      }
-
-      const retry = await retryQuery.select('id, status').maybeSingle();
-      locked = retry.data;
-      lockErr = retry.error;
-    }
-
-    if (!lockErr && locked) {
-      dbLockAcquired = true;
-    } else if (!lockErr && !locked) {
-      throw new HttpError(409, 'This claim is currently being adjudicated by another instance.');
-    }
-  } catch (err) {
-    if (err instanceof HttpError) throw err;
-    // If DB check constraint doesn't include PROCESSING yet (code 23514), inFlight in-memory set serves as fallback
-    console.warn('[claims] DB atomic status transition to PROCESSING bypassed:', err?.message);
-  }
+  const { data: locked, error: lockErr } = await lock.select('id').maybeSingle();
+  // 23514: the status check constraint predates PROCESSING.
+  if (lockErr) throw lockErr.code === '23514' ? schemaOutOfDate() : dbError(lockErr);
+  if (!locked) throw new HttpError(409, alreadyRunning);
 
   inFlight.add(claim.id);
   try {
+    spendAiRequest(req.user.id);
     return present(await runAgent(claim, { onStage, onLog, processedBy: req.user.id }), req);
   } catch (err) {
-    // If run failed before a final verdict was saved, roll back to PENDING so it can be retried
-    if (dbLockAcquired) {
-      try {
-        await supabaseAdmin.from('claims').update({ status: 'PENDING' }).eq('id', claim.id).eq('status', 'PROCESSING');
-      } catch {}
-    }
+    // No verdict was saved, so hand the claim back for another try.
+    const { error: unlockErr } = await supabaseAdmin
+      .from('claims')
+      .update({ status: 'PENDING' })
+      .eq('id', claim.id)
+      .eq('status', 'PROCESSING');
+    if (unlockErr) console.warn('[claims] could not return claim to PENDING:', unlockErr.message);
     throw err;
   } finally {
     inFlight.delete(claim.id);
@@ -396,6 +374,7 @@ async function runAgent(claim, { onStage, onLog, processedBy }) {
   // 1. Autonomous reasoning by Gemini
   onStage('reasoning');
   const { result, model, attempts } = await runAdjudicationAgent(claim, policy, referencePrices ?? []);
+  if (model !== config.geminiModel) await log([`[SYS] ${config.geminiModel} has no quota left; answered by ${model}`]);
   await log(result.chain_of_thought);
 
   // 2. Deterministic verification of the flags and the payout math
@@ -553,6 +532,187 @@ export async function listPolicies(req, res) {
 
   const { data, error } = await query.order('policy_number');
 
-  if (error) throw new HttpError(500, `Database error: ${error.message}`);
+  if (error) throw dbError(error);
   res.json({ policies: data });
+}
+
+/** GET /api/reference-prices — the rate card the overcharge check compares against */
+export async function listReferencePrices(_req, res) {
+  const { data, error } = await supabaseAdmin
+    .from('reference_prices')
+    .select('item_name, typical_max_price, unit')
+    .order('item_name');
+
+  if (error) throw dbError(error);
+  res.json({ prices: data });
+}
+
+/**
+ * POST /api/estimate — what a policy would pay for a planned bill, before
+ * anything is filed. No model is involved: a line is left out only if its name
+ * opens with one of the policy's exclusions or it exactly repeats another
+ * line, and the patient is taken to be the policy's holder, so this is the
+ * most the policy would pay. (The patient ID is deliberately not an input:
+ * a free answer to "does this ID hold this policy?" would let IDs be guessed.)
+ */
+export async function estimatePayout(req, res) {
+  const body = estimateSchema.parse(req.body);
+
+  const { data: policy, error } = await supabaseAdmin.from('policies').select('*').eq('id', body.policy_id).maybeSingle();
+  if (error) throw dbError(error);
+  if (!policy) throw new HttpError(400, 'Referenced policy does not exist.', [{ path: 'policy_id', message: 'Unknown policy' }]);
+  if (isPatient(req) && norm(policy.patient_id) !== norm(req.profile.patient_id)) {
+    throw new HttpError(403, 'You can only estimate against your own policy.', [{ path: 'policy_id', message: 'Not your policy' }]);
+  }
+
+  const estimate = computeAdjudication({
+    billItems: body.raw_bill_data,
+    totalBilled: body.raw_bill_data.reduce((sum, item) => sum + item.cost, 0),
+    policy,
+    lineItems: [],
+  });
+  res.json({
+    estimate: {
+      breakdown: estimate.breakdown,
+      excluded_lines: estimate.denied_items.map(({ line, item_name, cost, reason }) => ({ line, item_name, cost, reason })),
+    },
+  });
+}
+
+/** GET /api/analytics — totals over the caller's claims, by status, by flag, by item and by day */
+export async function getAnalytics(req, res) {
+  const cols = 'status, total_billed, approved_amount, created_at, line_items:ai_reasoning_log->line_items, breakdown:ai_reasoning_log->breakdown';
+  const claims = await allRows(() => scopedClaims(req, cols).order('id'));
+
+  const byStatus = {};
+  const totals = { billed: 0, approved: 0, flagged: 0, not_covered: 0, waived: 0 };
+  const flags = new Map();
+  const items = new Map();
+  const days = new Map();
+
+  for (const c of claims) {
+    byStatus[c.status] = (byStatus[c.status] ?? 0) + 1;
+    const day = String(c.created_at).slice(0, 10);
+    const d = days.get(day) ?? { date: day, claims: 0, billed: 0, approved: 0 };
+    d.claims += 1;
+    d.billed += Number(c.total_billed);
+    days.set(day, d);
+
+    if (c.status === 'PENDING' || c.status === 'PROCESSING') continue;
+    d.approved += Number(c.approved_amount || 0);
+    totals.billed += Number(c.total_billed);
+    totals.approved += Number(c.approved_amount || 0);
+    totals.flagged += Number(c.breakdown?.flagged_total || 0);
+    totals.not_covered += Number(c.breakdown?.not_covered_total || 0);
+    totals.waived += Number(c.breakdown?.waived_total || 0);
+
+    for (const l of c.line_items ?? []) {
+      if (l.flag === 'OK') continue;
+      const f = flags.get(l.flag) ?? { flag: l.flag, lines: 0, amount: 0 };
+      f.lines += 1;
+      f.amount += Number(l.cost);
+      flags.set(l.flag, f);
+
+      const key = norm(l.item_name);
+      const item = items.get(key) ?? { item_name: l.item_name, times: 0, amount: 0 };
+      item.times += 1;
+      item.amount += Number(l.cost);
+      items.set(key, item);
+    }
+  }
+
+  const byAmount = (a, b) => b.amount - a.amount;
+  const rounded = (rows) => rows.map((r) => ({ ...r, amount: round2(r.amount) }));
+  res.json({
+    total_claims: claims.length,
+    adjudicated_claims: claims.length - (byStatus.PENDING ?? 0) - (byStatus.PROCESSING ?? 0),
+    by_status: byStatus,
+    totals: Object.fromEntries(Object.entries(totals).map(([k, v]) => [k, round2(v)])),
+    by_flag: rounded([...flags.values()].sort(byAmount)),
+    top_flagged_items: rounded([...items.values()].sort(byAmount).slice(0, 8)),
+    daily: [...days.values()]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-14)
+      .map((d) => ({ ...d, billed: round2(d.billed), approved: round2(d.approved) })),
+  });
+}
+
+/**
+ * GET /api/verify/:id — public. What the QR code on a discharge slip opens: it
+ * confirms that a slip with this reference was issued and for how much, and
+ * says nothing about the patient, the policy or the bill's contents.
+ */
+export async function verifyClaim(req, res) {
+  const { id } = uuidParamSchema.parse(req.params);
+  const { data, error } = await supabaseAdmin
+    .from('claims')
+    .select('id, status, total_billed, approved_amount, hospital_org, processed_at:ai_reasoning_log->>processed_at, patient_payable:ai_reasoning_log->breakdown->patient_payable')
+    .eq('id', id)
+    // A bill a patient typed in and checked themselves is nobody's discharge slip.
+    .eq('source', 'HOSPITAL')
+    .maybeSingle();
+
+  if (error) throw dbError(error);
+  if (!data || data.status === 'PENDING' || data.status === 'PROCESSING') {
+    throw new HttpError(404, 'No adjudicated claim has this reference.');
+  }
+  res.json({
+    verification: {
+      reference: data.id,
+      status: data.status,
+      hospital: data.hospital_org,
+      total_billed: Number(data.total_billed),
+      approved_amount: Number(data.approved_amount),
+      patient_payable: Number(data.patient_payable ?? Math.max(0, data.total_billed - data.approved_amount)),
+      processed_at: data.processed_at,
+    },
+  });
+}
+
+// The scanned bill a claim was typed in from, kept in private storage under the claim's ID.
+const DOCUMENT_BUCKET = 'claim-documents';
+let bucketReady = null;
+const ensureBucket = () =>
+  (bucketReady ??= supabaseAdmin.storage.createBucket(DOCUMENT_BUCKET, { public: false }).then(({ error }) => {
+    if (error && !/exist/i.test(error.message)) {
+      bucketReady = null;
+      throw new HttpError(500, `Document storage is unavailable: ${error.message}`);
+    }
+  }));
+
+/** POST /api/claims/:id/document — attach the original bill to a claim the caller filed */
+export async function attachDocument(req, res) {
+  const { id } = uuidParamSchema.parse(req.params);
+  const body = billExtractionSchema.parse(req.body);
+  const claim = await getAccessibleClaim(id, req);
+  if (claim.hospital_user_id !== req.user.id && claim.patient_user_id !== req.user.id) {
+    throw new HttpError(403, 'Only the account that filed this claim can attach its bill.');
+  }
+
+  await ensureBucket();
+  const base64 = body.fileBase64.includes(',') ? body.fileBase64.split(',')[1] : body.fileBase64;
+  const { error } = await supabaseAdmin.storage
+    .from(DOCUMENT_BUCKET)
+    // Never replaced: it is the record of what the claim was typed in from.
+    .upload(claim.id, Buffer.from(base64, 'base64'), { contentType: body.mimeType, upsert: false });
+
+  if (error) {
+    if (/exist|duplicate/i.test(error.message)) throw new HttpError(409, 'This claim already has its original bill attached.');
+    throw new HttpError(500, `Failed to store the document: ${error.message}`);
+  }
+  res.status(201).json({ attached: true });
+}
+
+/** GET /api/claims/:id/document — a link to the claim's original bill that works for an hour, or null */
+export async function getDocument(req, res) {
+  const { id } = uuidParamSchema.parse(req.params);
+  const claim = await getAccessibleClaim(id, req);
+
+  const { data: found, error: listErr } = await supabaseAdmin.storage.from(DOCUMENT_BUCKET).list('', { search: claim.id, limit: 1 });
+  // No bucket yet means no claim has had a document attached.
+  if (listErr || !found?.some((f) => f.name === claim.id)) return res.json({ url: null });
+
+  const { data, error } = await supabaseAdmin.storage.from(DOCUMENT_BUCKET).createSignedUrl(claim.id, 3600);
+  if (error) throw new HttpError(500, `Failed to open the document: ${error.message}`);
+  res.json({ url: data.signedUrl });
 }

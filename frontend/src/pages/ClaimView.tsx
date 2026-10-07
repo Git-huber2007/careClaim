@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router';
 import { API_BASE, errorMessage, fetchApi, getAccessToken } from '../lib/api';
 import { useAccount } from '../lib/account';
 import { approvedDisplay, flagLabel, flaggedLines, isSuspicious, patientPayable, toPayoutBreakdown, toTerminalEvents } from '../lib/claims';
-import type { Dispute } from '../lib/claims';
+import type { Dispute, ReferencePrice } from '../lib/claims';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { AgentTerminal } from '../components/AgentTerminal';
 import type { TerminalEvent } from '../components/AgentTerminal';
@@ -13,8 +13,9 @@ import { DischargeSlipModal } from '../components/DischargeSlipModal';
 import { DisputeCard } from '../components/DisputeCard';
 import { FlaggedLine } from '../components/FlaggedLine';
 import { formatCurrency } from '../lib/format';
-import { BarChart3, Printer, Smartphone } from 'lucide-react';
+import { BarChart3, FileText, Printer, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
+import { PlainSummary } from '../components/PlainSummary';
 import { PatientSmsModal } from '../components/PatientSmsModal';
 import { BenchmarkInspectorModal } from '../components/BenchmarkInspectorModal';
 
@@ -33,11 +34,11 @@ function ClaimDetail({ id }: { id: string }) {
   const [streaming, setStreaming] = useState(false); // this tab holds the open run stream
   const [showSlip, setShowSlip] = useState(false);
   const [showSmsModal, setShowSmsModal] = useState(false);
-  const [inspectorItem, setInspectorItem] = useState<{
-    item: { item_name: string; cost: number };
-    hit?: any;
-    lineNumber: number;
-  } | null>(null);
+  const [inspectedLine, setInspectedLine] = useState<number | null>(null);
+  // The flagged line whose dispute form is open (one at a time).
+  const [disputeLine, setDisputeLine] = useState<number | null>(null);
+  const [prices, setPrices] = useState<ReferencePrice[] | null>(null);
+  const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const streamAbort = useRef<AbortController | null>(null);
 
   const loadClaim = useCallback(
@@ -60,10 +61,18 @@ function ClaimDetail({ id }: { id: string }) {
 
   useEffect(() => { loadClaim(); }, [loadClaim]);
 
+  // Extras the page works without: the rate card behind the inspector, and the scanned bill if one was attached.
+  useEffect(() => {
+    fetchApi('/api/reference-prices').then(res => setPrices(res.prices)).catch(() => {});
+    fetchApi(`/api/claims/${id}/document`).then(res => setDocumentUrl(res.url)).catch(() => {});
+  }, [id]);
+
+  // The backend marked a run for this claim that then died (a server restart); it can be run again.
+  const stalled = Boolean(claim?.stalled);
   // A run this tab is not streaming (the stream dropped, or it was started
   // before this page opened) still finishes and saves on the backend, so wait
   // for its verdict instead of offering to run the claim a second time.
-  const adjudicating = Boolean(claim?.adjudicating) || claim?.status === 'PROCESSING';
+  const adjudicating = Boolean(claim?.adjudicating) || (claim?.status === 'PROCESSING' && !stalled);
   useEffect(() => {
     if (!adjudicating || streaming) return;
     // Each poll waits for the one before it, so slow responses cannot pile up
@@ -89,7 +98,7 @@ function ClaimDetail({ id }: { id: string }) {
   const busy = streaming || adjudicating;
 
   const runAdjudication = async () => {
-    if (!claim || claim.status !== 'PENDING' || busy) return;
+    if (!claim || (claim.status !== 'PENDING' && !stalled) || busy) return;
 
     setStreaming(true);
     setEvents([]);
@@ -179,12 +188,28 @@ function ClaimDetail({ id }: { id: string }) {
   const disputedLines = new Set(disputes.map(d => d.line_number));
   const decided = claim.status !== 'PENDING' && claim.status !== 'PROCESSING';
   // A patient can open a claim the hospital filed for them, but only the hospital can run it.
-  const canRun = claim.status === 'PENDING' && !busy && (!isPatient || claim.source === 'PATIENT');
+  const canRun = (claim.status === 'PENDING' || stalled) && !busy && (!isPatient || claim.source === 'PATIENT');
   // A bill the patient entered themselves has no hospital account behind it to answer.
   const canDispute = isPatient && claim.source === 'HOSPITAL';
   const payoutNote = !decided
-    ? busy ? 'Adjudication in progress' : 'Not adjudicated yet'
+    ? busy
+      ? 'Adjudication in progress'
+      : !stalled
+        ? 'Not adjudicated yet'
+        : canRun
+          ? 'The last run stopped before it finished. Run it again.'
+          : 'The last run stopped before it finished. The hospital needs to run it again.'
     : isPatient ? `You pay ${formatCurrency(patientPayable(claim))}` : '';
+
+  const inspected = inspectedLine ? { item: claim.raw_bill_data[inspectedLine - 1], hit: flagByLine.get(inspectedLine) } : null;
+  const canDisputeInspected =
+    canDispute && Boolean(inspected?.hit) && isSuspicious(inspected!.hit!.flag) && !inspected!.hit!.waived && !disputedLines.has(inspectedLine!);
+
+  const onDisputeAnswered = (dispute: Dispute) => {
+    upsertDispute(dispute);
+    // An accepted dispute takes the charge off what the patient owes; show the new amounts.
+    if (dispute.status === 'ACCEPTED') loadClaim();
+  };
 
   return (
     <div className="p-6 md:p-10 max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -205,6 +230,13 @@ function ClaimDetail({ id }: { id: string }) {
               <div className="text-ink-soft">Diagnosis</div>
               <div className="font-mono bg-bone px-1 rounded inline-block">{claim.diagnosis_code}</div>
             </div>
+            {documentUrl && (
+              <div>
+                <a href={documentUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-pine font-medium hover:underline">
+                  <FileText size={14} /> View the original bill
+                </a>
+              </div>
+            )}
             <div className="border-t border-rule pt-4">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-ink-soft">Itemized Bill</span>
@@ -220,8 +252,8 @@ function ClaimDetail({ id }: { id: string }) {
                     <button
                       key={i}
                       type="button"
-                      onClick={() => setInspectorItem({ item, hit, lineNumber })}
-                      title="Click to inspect hospital pricing vs CGHS benchmark tariff"
+                      onClick={() => setInspectedLine(lineNumber)}
+                      title="Compare this charge with the reference price"
                       className={`w-full text-left font-mono text-xs p-2 rounded transition-all cursor-pointer border ${
                         hit
                           ? 'bg-vermilion/10 border-vermilion/30 hover:bg-vermilion/15'
@@ -239,10 +271,11 @@ function ClaimDetail({ id }: { id: string }) {
                               isSuspicious(hit.flag) ? 'text-vermilion' : 'text-amber'
                             }`}
                           >
-                            {flagLabel(hit.flag)}
+                            {flagLabel(hit.flag)}{hit.waived ? ' · withdrawn' : ''}
                           </div>
                         ) : (
-                          <div className="text-[10px] text-moss font-semibold">Standard Rate</div>
+                          // Until there is a verdict nothing has been checked, so nothing is called OK.
+                          <div className={`text-[10px] font-semibold ${decided ? 'text-moss' : 'text-ink-soft'}`}>{decided ? 'OK' : 'Not checked yet'}</div>
                         )}
                         <span className="text-[9px] text-ink-soft hover:text-pine">
                           Inspect ↗
@@ -271,7 +304,7 @@ function ClaimDetail({ id }: { id: string }) {
               disabled={busy}
               className="bg-phosphor hover:bg-phosphor/80 text-pine-deep font-bold font-mono text-xs uppercase tracking-widest px-4 py-2 rounded transition-colors disabled:opacity-50 flex items-center gap-2 shadow-[0_0_15px_rgba(92,255,157,0.3)]"
             >
-              {busy ? 'Processing...' : 'Run Autonomous Adjudication'}
+              {stalled ? 'Run Adjudication Again' : 'Run Autonomous Adjudication'}
             </button>
           )}
         </div>
@@ -310,7 +343,7 @@ function ClaimDetail({ id }: { id: string }) {
                   </button>
                 </>
               )}
-              <StatusStamp status={busy ? 'PROCESSING' : claim.status} />
+              <StatusStamp status={busy ? 'PROCESSING' : stalled ? 'PENDING' : claim.status} />
             </div>
           </div>
 
@@ -327,6 +360,12 @@ function ClaimDetail({ id }: { id: string }) {
               <PayoutWaterfall breakdown={breakdown} />
             )}
 
+            {decided && (
+              <div className="mt-8">
+                <PlainSummary claim={claim} forPatient={isPatient} />
+              </div>
+            )}
+
             {flagged.length > 0 && (
               <div className="mt-8 space-y-2">
                 <div className="font-mono text-xs uppercase tracking-widest text-ink-soft">
@@ -340,13 +379,10 @@ function ClaimDetail({ id }: { id: string }) {
                     canDispute={canDispute}
                     disputed={disputedLines.has(l.line)}
                     onDisputed={upsertDispute}
+                    open={disputeLine === l.line}
+                    onOpenChange={open => setDisputeLine(open ? l.line : null)}
                   />
                 ))}
-                {isPatient && flagged.some(l => isSuspicious(l.flag)) && (
-                  <p className="text-xs text-ink-soft">
-                    A flag means the charge is worth asking about. It is not proof that the hospital did anything wrong.
-                  </p>
-                )}
               </div>
             )}
 
@@ -357,7 +393,7 @@ function ClaimDetail({ id }: { id: string }) {
                 </div>
                 <ul className="space-y-2">
                   {disputes.map(d => (
-                    <DisputeCard key={d.id} dispute={d} onChanged={upsertDispute} />
+                    <DisputeCard key={d.id} dispute={d} onChanged={onDisputeAnswered} />
                   ))}
                 </ul>
               </div>
@@ -368,13 +404,22 @@ function ClaimDetail({ id }: { id: string }) {
 
       {showSlip && <DischargeSlipModal claim={claim} onClose={() => setShowSlip(false)} />}
       {showSmsModal && <PatientSmsModal claim={claim} onClose={() => setShowSmsModal(false)} />}
-      {inspectorItem && (
+      {inspected && inspectedLine && (
         <BenchmarkInspectorModal
-          item={inspectorItem.item}
-          hit={inspectorItem.hit}
-          lineNumber={inspectorItem.lineNumber}
-          onClose={() => setInspectorItem(null)}
-          canDispute={canDispute}
+          item={inspected.item}
+          hit={inspected.hit}
+          lineNumber={inspectedLine}
+          decided={decided}
+          prices={prices}
+          onClose={() => setInspectedLine(null)}
+          onStartDispute={
+            canDisputeInspected
+              ? () => {
+                  setDisputeLine(inspectedLine);
+                  setInspectedLine(null);
+                }
+              : undefined
+          }
         />
       )}
     </div>

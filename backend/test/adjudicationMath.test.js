@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeAdjudication, resolveLineItems } from '../services/adjudicationMath.js';
+import { computeAdjudication, resolveLineItems, waiveLine } from '../services/adjudicationMath.js';
 
 describe('Adjudication Math Engine', () => {
   it('correctly calculates clean approved claims with copay', () => {
@@ -146,5 +146,50 @@ describe('Adjudication Math Engine', () => {
     assert.equal(res.breakdown.cap_applied, true);
     assert.equal(res.approved_amount, 200000);
     assert.equal(res.breakdown.cap_reduction, 100000);
+  });
+
+  it('estimates a planned bill with no agent decisions: only named exclusions are denied', () => {
+    const res = computeAdjudication({
+      billItems: [
+        { item_name: 'Room Charges (2 days)', cost: 10000 },
+        { item_name: 'MRI Brain', cost: 15000 },
+      ],
+      totalBilled: 25000,
+      policy: { patient_id: 'PAT-005', copay_percentage: 20, max_coverage_limit: 100000, excluded_treatments: ['MRI'] },
+      lineItems: [],
+    });
+
+    assert.equal(res.patient_mismatch, false);
+    assert.deepEqual(res.denied_items.map((l) => l.line), [2]);
+    assert.equal(res.approved_amount, 8000);
+    assert.equal(res.breakdown.patient_payable, 17000);
+  });
+
+  it('takes a withdrawn charge off what the patient owes, once, and leaves the payout alone', () => {
+    const verdict = computeAdjudication({
+      billItems: [
+        { item_name: 'Surgery', cost: 50000 },
+        { item_name: 'Anesthesia', cost: 9000 },
+        { item_name: 'Anesthesia', cost: 9000 },
+      ],
+      totalBilled: 68000,
+      policy: { patient_id: 'PAT-006', copay_percentage: 10, max_coverage_limit: 500000 },
+      lineItems: [],
+      patientId: 'PAT-006',
+    });
+    assert.equal(verdict.breakdown.patient_payable, 14900);
+
+    const waived = waiveLine(verdict, 3);
+    assert.equal(waived.breakdown.patient_payable, 5900);
+    assert.equal(waived.breakdown.waived_total, 9000);
+    assert.equal(waived.breakdown.approved_amount, verdict.breakdown.approved_amount);
+    assert.equal(waived.line_items[2].waived, true);
+    assert.equal(waived.denied_items[0].waived, true);
+    assert.equal(verdict.line_items[2].waived, undefined, 'the original verdict is not modified');
+
+    assert.equal(waiveLine(waived, 3), null, 'already withdrawn');
+    assert.equal(waiveLine(verdict, 1), null, 'a line the insurer paid cannot be withdrawn this way');
+    assert.equal(waiveLine(verdict, 9), null, 'no such line');
+    assert.equal(waiveLine(null, 1), null, 'not adjudicated');
   });
 });

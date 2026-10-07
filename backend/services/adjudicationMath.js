@@ -20,7 +20,7 @@ export const FLAGS = ['OK', 'NOT_COVERED', 'DUPLICATE', 'OVERPRICED', 'UNBUNDLED
  */
 export const SUSPICIOUS_FLAGS = ['DUPLICATE', 'OVERPRICED', 'UNBUNDLED', 'UNRELATED'];
 
-const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+export const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
 const namesMatch = (a, b) => Boolean(a && b) && (a === b || a.includes(b) || b.includes(a));
 
@@ -123,6 +123,32 @@ function enforceNamedExclusions(lines, { excluded_treatments: excluded = [], cov
     caught += 1;
   }
   return caught;
+}
+
+/**
+ * The hospital agreed that a disputed charge was wrong and withdrew it, so the
+ * patient no longer owes that line. The insurer's payout does not change: a
+ * line that was not passed as OK was never part of it.
+ *
+ * Returns the updated verdict, or null when there is nothing to withdraw (the
+ * line was paid by the insurer, is already withdrawn, or is not in the verdict).
+ */
+export function waiveLine(log, lineNumber) {
+  const line = log?.line_items?.find((l) => l.line === lineNumber);
+  if (!line || line.flag === 'OK' || line.waived) return null;
+
+  const b = log.breakdown ?? {};
+  const mark = (l) => (l.line === lineNumber ? { ...l, waived: true } : l);
+  return {
+    ...log,
+    line_items: log.line_items.map(mark),
+    denied_items: (log.denied_items ?? []).map(mark),
+    breakdown: {
+      ...b,
+      waived_total: round2(Number(b.waived_total ?? 0) + line.cost),
+      patient_payable: round2(Math.max(0, Number(b.patient_payable ?? 0) - line.cost)),
+    },
+  };
 }
 
 export function computeAdjudication({ billItems, totalBilled, policy, lineItems, patientId }) {

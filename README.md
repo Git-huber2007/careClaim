@@ -14,8 +14,14 @@
 - **Live Agent Terminal**: The run is streamed over Server-Sent Events and printed line by line. A run that loses its stream (a reload, a dropped connection) still finishes on the server, and the page picks the verdict up by itself.
 - **Deterministic Verification**: The model only decides the flag on each line. The payout is recomputed in code (`Total Billed − Exclusions − Copay = Approved Payout`, capped at the policy limit), and three rules are enforced whatever the model says: exact duplicates, lines whose name opens with an excluded treatment, and a patient who is not the policy holder.
 - **One Verdict Per Claim**: A claim is adjudicated once. A second run is refused while one is in flight and after a verdict is saved.
-- **Bill Scanning**: Upload a PDF or photo of a bill and Gemini extracts the line items, total and diagnosis code.
-- **Discharge Slip**: A printable discharge clearance and explanation-of-benefits slip for every adjudicated claim.
+- **Bill Scanning**: Upload a PDF or photo of a bill and Gemini extracts the line items, total and diagnosis code. The scanned file is kept with the claim as its original bill.
+- **Discharge Slip**: A printable discharge clearance and explanation-of-benefits slip for every adjudicated claim. A hospital-filed claim's slip carries a QR code that opens a public page confirming the slip's amounts.
+- **Disputes Change the Bill**: When the hospital agrees with a dispute, that charge is withdrawn and comes off what the patient owes. The insurer's payout is unchanged, since a flagged charge was never part of it.
+- **Rate Inspector**: Any bill line can be opened next to its entry on the reference price list, with how many times the reference it was charged.
+- **Estimate Before Filing**: The claim form can work out what the policy would pay for a planned bill from the policy's terms alone, with no AI run and nothing saved.
+- **In Simple Words**: Every verdict has a plain-language summary in English and Hindi, built from the flags and amounts.
+- **Search, Export and Analytics**: The claims list can be searched, filtered, sorted and exported as CSV; an analytics page totals outcomes, flagged amounts and the most-flagged items.
+- **Stalled-Run Recovery**: A run is marked in the database while it is in flight. If the server stops mid-run, the claim is offered for a new run after three minutes instead of staying stuck.
 - **Mock Insurance Policies**: Twelve seeded Indian health policies (general, cardiac, oncology, orthopaedic, maternity, critical care, trauma, PM-JAY and more) for testing exclusions, copays, coverage caps and mismatched patient IDs.
 
 ---
@@ -32,7 +38,7 @@
   │    ├── middleware/
   │    │    ├── auth.js                 # Supabase JWT verification + role loading
   │    │    └── errorHandler.js         # Global error & Zod validation handler
-  │    ├── routes/claims.js             # /api/me, /api/claims, /api/disputes, /api/policies, /api/stats
+  │    ├── routes/claims.js             # /api/me, claims, disputes, policies, stats, analytics, estimate, verify
   │    ├── services/
   │    │    ├── adjudicationMath.js     # Deterministic payout math, line matching, enforced rules
   │    │    ├── geminiService.js        # @google/genai integration: adjudication and bill extraction
@@ -51,7 +57,10 @@
   │         │    ├── FlaggedLine.tsx         # A bill line that was not paid, with "Dispute this charge"
   │         │    ├── DisputeCard.tsx         # One dispute and the hospital's answer
   │         │    ├── NoteForm.tsx            # Note box shared by raising and answering a dispute
-  │         │    ├── DischargeSlipModal.tsx  # Printable discharge / EOB slip
+  │         │    ├── DischargeSlipModal.tsx  # Printable discharge / EOB slip, with a verification QR code
+  │         │    ├── BenchmarkInspectorModal.tsx  # A bill line next to its reference price
+  │         │    ├── PlainSummary.tsx        # The verdict in simple words, English or Hindi
+  │         │    ├── PatientSmsModal.tsx     # Preview of the message a patient would get
   │         │    └── StatusStamp.tsx         # Claim status stamp
   │         ├── lib/                         # api client, claim helpers, formatting, Supabase client
   │         ├── pages/
@@ -59,9 +68,11 @@
   │         │    ├── ResetPassword.tsx       # Where the emailed reset link lands
   │         │    ├── AccountSetup.tsx        # One-time choice of hospital or patient account
   │         │    ├── Dashboard.tsx           # Claims list and headline numbers
-  │         │    ├── NewClaim.tsx            # Claim intake / patient bill check, with bill scanning
+  │         │    ├── NewClaim.tsx            # Claim intake / patient bill check, with bill scanning and estimate
   │         │    ├── ClaimView.tsx           # Bill, agent terminal, verdict, disputes
-  │         │    └── Disputes.tsx            # Hospital queue / a patient's own disputes
+  │         │    ├── Disputes.tsx            # Hospital queue / a patient's own disputes
+  │         │    ├── Analytics.tsx           # Outcomes, flagged amounts, most-flagged items
+  │         │    └── Verify.tsx              # Public page the slip's QR code opens
   │         ├── App.tsx                      # Routes (each page is a lazily loaded chunk)
   │         └── index.css                    # Design tokens ("Pine & Bone" theme)
   ├── supabase/schema.sql               # Tables, access lockdown and seed data
@@ -139,7 +150,10 @@ To see the patient side, register a second account as a patient with `STAR-402-G
 - `POST /api/claims/:id/process` runs the agent. With `Accept: text/event-stream` it streams `stage_start`, `log`, then `result` (or `error`); otherwise it answers with JSON.
 - `GET /api/claims/:id` includes `adjudicating: true` while a run for that claim is in flight.
 - `GET /api/policies` returns a patient's own policy. A hospital must pass `?policy_number=` and gets that one policy, without the holder's patient ID.
-- The Gemini free tier allows a small number of requests per model per day (20 for `gemini-2.5-flash` at the time of writing). Each adjudication and each bill scan is one request; when the quota is spent they fail until it resets, or until `GEMINI_MODEL` names another model.
+- `POST /api/estimate` answers with the payout math for a planned bill against a policy; `GET /api/analytics` and `GET /api/reference-prices` are read-only views.
+- `POST /api/claims/:id/document` attaches the scanned bill (once; it cannot be replaced) and `GET` answers with a link to it that works for an hour. The files live in a private Supabase Storage bucket, `claim-documents`, which the backend creates on first use.
+- `GET /api/verify/:id` needs no sign-in. It confirms the status and amounts of an adjudicated, hospital-filed claim and nothing else.
+- The Gemini free tier allows a small number of requests per model per day (20 for `gemini-2.5-flash` at the time of writing). Each adjudication and each bill scan is one request. When `GEMINI_MODEL` answers that its quota is spent, the request goes to `GEMINI_FALLBACK_MODEL` (default `gemini-3.5-flash-lite`); when that fails too, the caller is told the quota is used up. `AI_DAILY_LIMIT_PER_USER` optionally caps requests per account per day.
 
 ---
 

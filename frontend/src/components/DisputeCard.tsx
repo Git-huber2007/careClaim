@@ -39,11 +39,15 @@ export function DisputeCard({ dispute, onChanged, showClaim = false }: DisputeCa
     }
     setBusy(true);
     try {
-      const { dispute: answered } = await fetchApi(`/api/disputes/${dispute.id}/respond`, {
+      const { dispute: answered, charge_withdrawn } = await fetchApi(`/api/disputes/${dispute.id}/respond`, {
         method: 'POST',
         body: JSON.stringify({ status: decision, response: response.trim() })
       });
       onChanged(answered);
+      // Agreeing also takes the charge off what the patient owes; say so if that part did not happen.
+      if (decision === 'ACCEPTED' && !charge_withdrawn) {
+        toast.warning('Your answer was saved, but the charge could not be taken off the bill automatically.');
+      }
     } catch (err: any) {
       toast.error(err.message);
     } finally {

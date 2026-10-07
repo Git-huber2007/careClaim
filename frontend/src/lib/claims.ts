@@ -29,6 +29,8 @@ export interface LineDecision {
   cost: number;
   flag: string;
   reason: string;
+  /** The hospital withdrew this charge after the patient disputed it. */
+  waived?: boolean;
 }
 
 // Flags that point at a possible billing problem; NOT_COVERED is a genuine
@@ -75,6 +77,54 @@ export interface Dispute {
   created_at: string;
   /** Only on the disputes list (GET /api/disputes), which spans claims. */
   patient_id?: string;
+}
+
+/** One row of the rate card the overcharge check compares against (GET /api/reference-prices). */
+export interface ReferencePrice {
+  item_name: string;
+  typical_max_price: number;
+  unit: string;
+}
+
+/** Lower-case words with a space on each side, so a whole phrase can be found with includes(). */
+const phrase = (s: string) => ` ${s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `;
+
+/**
+ * The rate-card entry for a bill line, or null when the card has none.
+ * "Lab Tests / Blood Work" matches either name; of several matches the longest
+ * wins ("PET-CT Scan" over "CT Scan"). A per-day price is multiplied by the
+ * days the line states, and any price by a "(x3)" quantity.
+ */
+export function findReferencePrice(itemName: string, prices: ReferencePrice[]) {
+  const item = phrase(itemName);
+  let best: { price: ReferencePrice; length: number } | null = null;
+  for (const price of prices) {
+    for (const name of price.item_name.split('/')) {
+      const wanted = phrase(name.replace(/\(.*?\)/g, ''));
+      if (wanted.trim() && item.includes(wanted) && wanted.length > (best?.length ?? 0)) best = { price, length: wanted.length };
+    }
+  }
+  if (!best) return null;
+
+  const days = /per day/i.test(best.price.unit) ? Number(/(\d+)\s*(?:days?|nights?)/i.exec(itemName)?.[1]) : NaN;
+  const quantity = Number(/\(x(\d+)\)\s*$/i.exec(itemName)?.[1]);
+  const multiplier = days > 0 ? days : quantity > 0 ? quantity : 1;
+  return {
+    name: best.price.item_name,
+    unit: best.price.unit,
+    unitPrice: Number(best.price.typical_max_price),
+    multiplier,
+    reference: Number(best.price.typical_max_price) * multiplier
+  };
+}
+
+/** Rows → CSV text. Cells are quoted, and one a spreadsheet would run as a formula is made plain text. */
+export function toCsv(rows: (string | number | null | undefined)[][]) {
+  const cell = (value: string | number | null | undefined) => {
+    const text = String(value ?? '');
+    return `"${(/^[=+\-@]/.test(text) && typeof value !== 'number' ? `'${text}` : text).replace(/"/g, '""')}"`;
+  };
+  return rows.map(row => row.map(cell).join(',')).join('\r\n');
 }
 
 /** One bill row of the intake form → the { item_name, cost } line the backend stores. */
