@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import { formatCurrency, formatDate, shortId } from '../lib/format';
 import { flagLabel, patientPayable } from '../lib/claims';
 import { Printer, X } from 'lucide-react';
+import { useModalFocus } from '../lib/useModalFocus';
 
 interface DischargeSlipModalProps {
   claim: any;
@@ -32,13 +33,7 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
     return () => { current = false; };
   }, [verifiable, verifyUrl]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  const dialog = useModalFocus<HTMLDivElement>(onClose);
 
   const handlePrint = () => {
     window.print();
@@ -52,8 +47,12 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
       : 'border-vermilion text-vermilion bg-vermilion/10';
 
   return createPortal(
-    <div data-print-root className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-ink/75 p-4 backdrop-blur-sm print:static print:block print:overflow-visible print:p-0 print:bg-white print:backdrop-blur-none">
-      <div role="dialog" aria-modal="true" aria-label="Discharge clearance slip" className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-paper text-ink shadow-2xl border border-rule print:max-h-none print:max-w-none print:overflow-visible print:shadow-none print:w-full print:rounded-none print:border-none">
+    <div
+      data-print-root
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-scrim/75 p-4 backdrop-blur-sm print:static print:block print:overflow-visible print:p-0 print:bg-white print:backdrop-blur-none cursor-pointer print:cursor-default"
+    >
+      <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Discharge clearance slip" className="outline-none relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-paper text-ink shadow-2xl border border-rule print:max-h-none print:max-w-none print:overflow-visible print:shadow-none print:w-full print:rounded-none print:border-none cursor-auto">
         {/* Action Toolbar (Screen Only) */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-rule bg-bone px-6 py-3 print:hidden">
           <div className="flex items-center gap-2">
@@ -68,7 +67,7 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
               id="print-slip-btn"
               className="btn btn-sm btn-primary"
             >
-              <Printer size={14} /> Print / Save PDF
+              <Printer size={14} /> Print / save PDF
             </button>
             <button
               onClick={onClose}
@@ -86,11 +85,11 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
           {/* Header */}
           <div className="flex flex-wrap items-start justify-between border-b-2 border-pine-deep pb-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded bg-pine text-bone font-serif text-2xl font-bold">
+              <div className="flex h-10 w-10 items-center justify-center rounded bg-pine text-bone text-2xl font-bold">
                 +
               </div>
               <div>
-                <h1 className="text-xl font-serif font-bold tracking-tight text-pine-deep uppercase">
+                <h1 className="text-xl font-serif font-bold tracking-tight text-pine-deep">
                   CareClaim Health Network
                 </h1>
                 <p className="text-xs text-ink-soft font-mono">
@@ -108,7 +107,7 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
 
           {/* Title */}
           <div className="my-6 text-center">
-            <h2 className="text-base font-serif font-bold uppercase tracking-wide text-pine-deep">
+            <h2 className="text-base font-serif font-bold text-pine-deep">
               Hospital Discharge Clearance & Explanation of Benefits (EOB)
             </h2>
             <p className="text-xs text-ink-soft font-mono">

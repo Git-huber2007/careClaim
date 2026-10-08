@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { findReferencePrice, toCsv } from './claims';
 import type { ReferencePrice } from './claims';
-import { explainVerdict } from './explain';
+import { LANGUAGES, explainVerdict } from './explain';
 import { describeIcd10, looksLikeIcd10 } from './icd10';
 
 const PRICES: ReferencePrice[] = [
@@ -116,6 +116,21 @@ describe('explainVerdict', () => {
     expect(e.notes).toHaveLength(3);
     // Only the item names, which come from the bill, stay as written.
     expect([...e.summary, ...e.notes].join(' ')).not.toMatch(/[A-Za-z]/);
+  });
+
+  it('gives the same content in every other language, with no English left in it', () => {
+    for (const { id } of LANGUAGES.filter(l => l.id !== 'en')) {
+      const e = explainVerdict(claim, id, true)!;
+      expect(e.summary, id).toHaveLength(4);
+      expect(e.summary[0], id).toContain('₹1,00,000');
+      expect(e.summary[3], id).toContain('₹50,000');
+      expect(e.charges, id).toHaveLength(2);
+      expect(e.charges[1], id).toContain('Scar Revision');
+      expect(e.notes, id).toHaveLength(3);
+      expect([...e.summary, ...e.notes].join(' '), id).not.toMatch(/[A-Za-z]/);
+      // Each language says it in its own words, not in another's.
+      expect(e.summary[0], id).not.toBe(explainVerdict(claim, id === 'hi' ? 'mr' : 'hi', true)!.summary[0]);
+    }
   });
 });
 

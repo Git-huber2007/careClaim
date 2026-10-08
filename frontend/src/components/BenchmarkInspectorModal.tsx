@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
 import { AlertTriangle, CheckCircle, Info, X } from 'lucide-react';
 import { formatCurrency } from '../lib/format';
 import { findReferencePrice, flagLabel } from '../lib/claims';
 import type { LineDecision, ReferencePrice } from '../lib/claims';
+import { useModalFocus } from '../lib/useModalFocus';
 
 // The agent is told to flag a charge above this many times the reference price.
 const OVERPRICED_RATIO = 1.5;
@@ -27,13 +27,7 @@ export function BenchmarkInspectorModal({ item, hit, lineNumber, decided, prices
   const ratio = match ? item.cost / match.reference : 0;
   const above = ratio > OVERPRICED_RATIO;
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  const dialog = useModalFocus<HTMLDivElement>(onClose);
 
   const finding = !decided
     ? { tone: 'bg-bone border-rule text-ink-soft', icon: <Info size={15} />, title: 'Not adjudicated yet', text: 'Run the adjudication to see what the agent decides for this charge.' }
@@ -47,8 +41,11 @@ export function BenchmarkInspectorModal({ item, hit, lineNumber, decided, prices
       : { tone: 'bg-moss/10 border-moss/30 text-moss', icon: <CheckCircle size={15} />, title: 'Passed (OK)', text: 'The agent found no problem with this charge, and the insurer pays its share of it.' };
 
   return (
-    <div className="fixed inset-0 z-50 bg-ink/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div role="dialog" aria-modal="true" aria-label={`Rate check for line ${lineNumber}`} className="bg-paper border border-rule w-full max-w-md rounded-xl shadow-2xl overflow-hidden flex flex-col">
+    <div
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className="fixed inset-0 z-50 bg-scrim/60 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
+    >
+      <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Rate check for line ${lineNumber}`} className="outline-none bg-paper border border-rule w-full max-w-md rounded-xl shadow-2xl overflow-hidden flex flex-col cursor-auto">
         <div className="p-4 border-b border-rule flex justify-between items-center bg-bone">
           <div>
             <div className="text-xs font-mono uppercase tracking-wider text-pine-deep font-bold">Rate Inspector</div>

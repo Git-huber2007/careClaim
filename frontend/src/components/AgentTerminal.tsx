@@ -25,19 +25,17 @@ export function AgentTerminal({ events, isProcessing }: { events: TerminalEvent[
   return (
     <div
       className={cn(
-        "bg-term-bg rounded-lg border border-pine-deep/50 overflow-hidden flex flex-col",
-        idle ? "h-44" : "h-[clamp(20rem,calc(100dvh-13rem),40rem)]"
+        "theme-fixed bg-term-bg rounded-lg border border-pine-deep/50 overflow-hidden flex flex-col",
+        "h-[clamp(20rem,calc(100dvh-13rem),38rem)]"
       )}
     >
       {/* Terminal Header */}
       <div className="h-8 shrink-0 border-b border-pine-deep/30 flex items-center px-4 justify-between bg-ink">
-        <div className="flex gap-2" aria-hidden>
-          <div className="w-2.5 h-2.5 rounded-full bg-ink-soft/50" />
-          <div className="w-2.5 h-2.5 rounded-full bg-ink-soft/50" />
-          <div className="w-2.5 h-2.5 rounded-full bg-ink-soft/50" />
-        </div>
+        <span className="text-[11px] font-mono font-bold text-term-dim tracking-wider">
+          {isProcessing ? '● ADJUDICATING' : 'LOG'}
+        </span>
         <div className="text-[11px] font-mono text-term-dim uppercase tracking-wider">
-          AGENT_TERMINAL // CareClaim OS
+          Reasoning log
         </div>
       </div>
 
@@ -48,7 +46,11 @@ export function AgentTerminal({ events, isProcessing }: { events: TerminalEvent[
         aria-label="Adjudication log"
         className="flex-1 min-h-0 overflow-y-auto term-scrollbar p-4 font-mono text-[13px] leading-relaxed"
       >
-        {idle && <div className="text-term-dim">No run yet. The agent's reasoning appears here, line by line.</div>}
+        {idle && (
+          <div className="h-full flex items-center justify-center text-center p-6 text-term-dim text-xs">
+            Nothing has run yet. The reasoning appears here, line by line.
+          </div>
+        )}
         {lines.map((evt, idx) => (
           <TerminalLine key={idx} line={evt.data?.message || ''} ts={evt.ts} index={idx} />
         ))}

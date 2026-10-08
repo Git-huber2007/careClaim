@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
+import { PageTitle } from '../components/PageTitle';
 import { API_BASE, errorMessage } from '../lib/api';
 import { formatCurrency, formatDate, shortId } from '../lib/format';
 import { StatusStamp } from '../components/StatusStamp';
@@ -37,10 +38,11 @@ export function Verify() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-paper rounded-lg border border-rule shadow-sm p-8 space-y-6">
+      <PageTitle>Verify a discharge slip</PageTitle>
+      <div className="w-full max-w-md bg-paper rounded-lg border border-rule p-8 space-y-6">
         <div className="text-center">
           <h1 className="font-serif text-2xl text-pine-deep">
-            CareClaim <span className="text-phosphor bg-pine px-1.5 py-0.5 rounded text-sm font-mono align-middle">AI</span>
+            CareClaim <span className="theme-fixed text-bone bg-pine px-1.5 py-0.5 rounded text-sm font-mono align-middle font-bold">AI</span>
           </h1>
           <div className="text-xs font-mono uppercase tracking-widest text-ink-soft mt-1">Discharge slip verification</div>
         </div>

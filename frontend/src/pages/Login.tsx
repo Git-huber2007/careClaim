@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
+import { PageTitle } from '../components/PageTitle';
 import { Building2, User, ArrowLeft, Mail, KeyRound, CheckCircle2, Info, MessageSquare, ShieldCheck, Timer, Zap } from 'lucide-react';
 
 type AuthMode = 'login' | 'register' | 'forgot_password';
@@ -18,14 +19,14 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  // Why the last attempt failed. It stays on the form until the next attempt or a change of tab.
+  const [formError, setFormError] = useState('');
   const registering = authMode === 'register';
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) {
-      toast.error('Please enter your registered email address.');
-      return;
-    }
+    if (!email.trim()) return setFormError('Please enter your registered email address.');
+    setFormError('');
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
@@ -35,7 +36,7 @@ export function Login() {
       setResetSent(true);
       toast.success('Password reset link sent to your email.');
     } catch (err: any) {
-      toast.error(err.message || 'Failed to send password reset email.');
+      setFormError(err.message || 'Failed to send password reset email.');
     } finally {
       setLoading(false);
     }
@@ -43,6 +44,7 @@ export function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
     setLoading(true);
 
     try {
@@ -52,10 +54,7 @@ export function Login() {
           password,
         });
         if (error) throw error;
-        if (!data.session) {
-          toast.error('Unable to establish session. Please verify your email.');
-          return;
-        }
+        if (!data.session) return setFormError('Unable to establish session. Please verify your email.');
         toast.success('Signed in');
       } else {
         const { error, data } = await supabase.auth.signUp({
@@ -67,8 +66,8 @@ export function Login() {
         // With email confirmation on, Supabase answers an already-registered
         // address with a user that has no identities, and sends no email.
         if (data.user && data.user.identities?.length === 0) {
-          toast.error('An account with this email already exists. Sign in, or reset your password.');
           setAuthMode('login');
+          setFormError('An account with this email already exists. Sign in, or reset your password.');
           return;
         }
         if (!data.session) {
@@ -81,7 +80,7 @@ export function Login() {
 
       navigate('/dashboard');
     } catch (err: any) {
-      toast.error(err.message || 'Authentication failed');
+      setFormError(err.message || 'Authentication failed');
     } finally {
       setLoading(false);
     }
@@ -89,6 +88,7 @@ export function Login() {
 
   return (
     <div className="min-h-screen flex">
+      <PageTitle>Sign in</PageTitle>
       {/* Left Form */}
       <div className="w-full lg:w-7/12 flex items-center justify-center p-6 md:p-10 bg-paper">
         <div className="w-full max-w-lg space-y-6">
@@ -97,7 +97,7 @@ export function Login() {
             <div className="flex items-center justify-between">
               <h1 className="text-3xl md:text-4xl font-serif text-pine-deep flex items-center gap-2">
                 CareClaim{' '}
-                <span className="text-phosphor bg-pine px-2 py-0.5 rounded text-xl md:text-2xl font-mono align-middle inline-block transform -translate-y-0.5">
+                <span className="theme-fixed text-bone bg-pine px-2 py-0.5 rounded text-xl md:text-2xl font-mono align-middle inline-block transform -translate-y-0.5 font-bold">
                   AI
                 </span>
               </h1>
@@ -113,15 +113,15 @@ export function Login() {
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <div className="bg-bone border border-rule rounded p-2.5">
                 <div className="font-bold text-pine-deep flex items-center gap-1">
-                  <Timer size={14} /> 10-Second Discharge
+                  <Timer size={14} /> 10-second discharge
                 </div>
                 <div className="text-ink-soft text-xs mt-0.5">
-                  Eliminates 4–6 hour manual discharge approval delays for patients.
+                  Eliminates 4 to 6 hour manual discharge approval delays for patients.
                 </div>
               </div>
               <div className="bg-bone border border-rule rounded p-2.5">
                 <div className="font-bold text-vermilion flex items-center gap-1">
-                  <ShieldCheck size={14} /> Stops Overcharging
+                  <ShieldCheck size={14} /> Stops overcharging
                 </div>
                 <div className="text-ink-soft text-xs mt-0.5">
                   Audits line items against rate cards; flags markups, unbundling & duplicates.
@@ -131,13 +131,13 @@ export function Login() {
           </div>
 
           {/* Quick-Start Demo Credentials Card for Judges */}
-          <div className="bg-bone border-2 border-pine/30 rounded-lg p-4 space-y-3 shadow-xs">
+          <div className="bg-bone border-2 border-pine/30 rounded-lg p-4 space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-xs font-mono uppercase font-bold text-pine-deep flex items-center gap-1.5">
                 <Zap size={14} /> Evaluator 1-Click Credentials
               </span>
               <span className="text-xs font-mono text-ink-soft bg-paper px-2 py-0.5 rounded border border-rule">
-                Click to Auto-Fill
+                Click to auto-fill
               </span>
             </div>
 
@@ -153,7 +153,7 @@ export function Login() {
                 className="text-left p-2.5 bg-paper hover:bg-pine/5 border border-rule hover:border-pine rounded transition-all cursor-pointer group"
               >
                 <div className="flex items-center gap-1.5 text-xs font-bold text-pine-deep group-hover:text-pine">
-                  <Building2 size={14} /> Hospital Staff
+                  <Building2 size={14} /> Hospital staff
                 </div>
                 <div className="text-xs text-ink-soft font-mono mt-1 truncate">
                   doctor.demo@careclaim.org
@@ -174,7 +174,7 @@ export function Login() {
                 className="text-left p-2.5 bg-paper hover:bg-pine/5 border border-rule hover:border-pine rounded transition-all cursor-pointer group"
               >
                 <div className="flex items-center gap-1.5 text-xs font-bold text-pine-deep group-hover:text-pine">
-                  <User size={14} /> Patient Account
+                  <User size={14} /> Patient account
                 </div>
                 <div className="text-xs text-ink-soft font-mono mt-1 truncate">
                   patient.demo@careclaim.org
@@ -199,15 +199,16 @@ export function Login() {
                 onClick={() => {
                   setAuthMode('login');
                   setResetSent(false);
+                  setFormError('');
                 }}
                 className="inline-flex items-center gap-1.5 text-xs font-mono text-ink-soft hover:text-pine transition-colors cursor-pointer"
               >
-                <ArrowLeft size={14} /> Back to Sign In
+                <ArrowLeft size={14} /> Back to sign in
               </button>
 
               <div className="bg-bone border border-rule rounded-lg p-5 space-y-2">
                 <div className="flex items-center gap-2 text-pine font-serif text-xl">
-                  <KeyRound size={20} /> Reset Password
+                  <KeyRound size={20} /> Reset password
                 </div>
                 <p className="text-xs text-ink-soft leading-relaxed">
                   Enter your registered account email. We will send you a secure link to reset your password.
@@ -217,7 +218,7 @@ export function Login() {
               {resetSent ? (
                 <div className="bg-moss/10 border border-moss/30 rounded-lg p-5 text-center space-y-3">
                   <CheckCircle2 size={32} className="text-moss mx-auto" />
-                  <div className="font-serif text-lg text-pine-deep">Check Your Inbox</div>
+                  <div className="font-serif text-lg text-pine-deep">Check your inbox</div>
                   <p className="text-xs text-ink-soft">
                     We sent a recovery link to <span className="font-mono font-bold text-ink">{email}</span>. Click the link in the email to set a new password.
                   </p>
@@ -226,16 +227,17 @@ export function Login() {
                     onClick={() => {
                       setAuthMode('login');
                       setResetSent(false);
+                      setFormError('');
                     }}
                     className="btn btn-primary w-full mt-2"
                   >
-                    Return to Sign In
+                    Return to sign in
                   </button>
                 </div>
               ) : (
                 <form onSubmit={handleResetPassword} className="space-y-4">
                   <div>
-                    <label htmlFor="reset-email" className="block text-xs font-mono uppercase tracking-wider text-ink-soft mb-1.5">
+                    <label htmlFor="reset-email" className="field-label">
                       Account Email
                     </label>
                     <div className="relative">
@@ -252,12 +254,13 @@ export function Login() {
                     </div>
                   </div>
 
+                  {formError && <p role="alert" className="form-error">{formError}</p>}
                   <button
                     type="submit"
                     disabled={loading}
                     className="btn btn-primary w-full py-2.5"
                   >
-                    {loading ? 'Sending link...' : 'Send Password Reset Link'}
+                    {loading ? 'Sending link...' : 'Send password reset link'}
                   </button>
                 </form>
               )}
@@ -278,7 +281,7 @@ export function Login() {
                     onClick={() => setPortalRole('HOSPITAL')}
                     className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
                       portalRole === 'HOSPITAL'
-                        ? 'border-pine bg-pine/5 shadow-sm ring-1 ring-pine'
+                        ? 'border-pine bg-pine/5 ring-1 ring-pine'
                         : 'border-rule bg-bone hover:border-ink-soft/40'
                     }`}
                   >
@@ -299,7 +302,7 @@ export function Login() {
                     onClick={() => setPortalRole('PATIENT')}
                     className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
                       portalRole === 'PATIENT'
-                        ? 'border-pine bg-pine/5 shadow-sm ring-1 ring-pine'
+                        ? 'border-pine bg-pine/5 ring-1 ring-pine'
                         : 'border-rule bg-bone hover:border-ink-soft/40'
                     }`}
                   >
@@ -319,26 +322,20 @@ export function Login() {
               )}
 
               {/* High-Contrast Segmented Switcher (Sign In vs Register) */}
-              <div className="bg-bone border border-rule p-1 rounded-lg grid grid-cols-2 text-xs font-mono uppercase tracking-wider font-semibold">
+              <div className="bg-bone border border-rule p-1 rounded-lg grid grid-cols-2 gap-1">
                 <button
                   type="button"
-                  onClick={() => setAuthMode('login')}
-                  className={`py-2 rounded-md transition-all cursor-pointer text-center ${
-                    authMode === 'login'
-                      ? 'bg-paper text-pine-deep shadow-sm border border-rule/50'
-                      : 'text-ink-soft hover:text-ink'
-                  }`}
+                  aria-pressed={authMode === 'login'}
+                  onClick={() => { setAuthMode('login'); setFormError(''); }}
+                  className={`tab text-center ${authMode === 'login' ? 'tab-active' : ''}`}
                 >
-                  Sign In
+                  Sign in
                 </button>
                 <button
                   type="button"
-                  onClick={() => setAuthMode('register')}
-                  className={`py-2 rounded-md transition-all cursor-pointer text-center ${
-                    authMode === 'register'
-                      ? 'bg-paper text-pine-deep shadow-sm border border-rule/50'
-                      : 'text-ink-soft hover:text-ink'
-                  }`}
+                  aria-pressed={authMode === 'register'}
+                  onClick={() => { setAuthMode('register'); setFormError(''); }}
+                  className={`tab text-center ${authMode === 'register' ? 'tab-active' : ''}`}
                 >
                   Register
                 </button>
@@ -348,7 +345,7 @@ export function Login() {
               <div className="bg-pine/5 border border-pine/20 rounded-md p-3 text-xs text-pine-deep space-y-1">
                 <div className="flex items-center gap-2 font-mono font-bold text-xs uppercase tracking-wider text-pine">
                   <span className="bg-pine text-bone px-1.5 py-0.5 rounded text-xs">Step 1 of 3</span>
-                  {authMode === 'login' ? 'Authentication' : 'Account Setup'}
+                  {authMode === 'login' ? 'Authentication' : 'Account setup'}
                 </div>
                 <p className="text-xs text-ink-soft leading-relaxed">
                   {authMode === 'login'
@@ -360,7 +357,7 @@ export function Login() {
               {/* Credentials Form */}
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label htmlFor="auth-email" className="block text-xs font-mono uppercase tracking-wider text-ink-soft mb-1">
+                  <label htmlFor="auth-email" className="field-label">
                     {!registering ? 'Email' : portalRole === 'HOSPITAL' ? 'Hospital / Work Email' : 'Patient / Personal Email'}
                   </label>
                   <input
@@ -377,7 +374,7 @@ export function Login() {
 
                 <div>
                   <div className="flex justify-between items-center mb-1">
-                    <label htmlFor="auth-password" className="text-xs font-mono uppercase tracking-wider text-ink-soft">
+                    <label htmlFor="auth-password" className="field-label mb-0">
                       Password
                     </label>
                     {authMode === 'login' && (
@@ -386,6 +383,7 @@ export function Login() {
                         onClick={() => {
                           setAuthMode('forgot_password');
                           setResetSent(false);
+                          setFormError('');
                         }}
                         className="text-xs text-pine hover:underline font-medium cursor-pointer"
                       >
@@ -407,22 +405,23 @@ export function Login() {
 
                 {authMode === 'register' && portalRole === 'PATIENT' && (
                   <p className="text-xs text-ink-soft bg-bone p-2.5 rounded border border-rule">
-                    <Info size={13} className="inline -mt-0.5 mr-1" />Next Step: Link your Policy Number (e.g. <code>STAR-402-GOLD</code>) and Patient ID (<code>PAT-1001</code>) to review itemized bills.
+                    <Info size={13} className="inline -mt-0.5 mr-1" />Next step: Link your Policy Number (e.g. <code>STAR-402-GOLD</code>) and Patient ID (<code>PAT-1001</code>) to review itemized bills.
                   </p>
                 )}
 
                 {authMode === 'register' && portalRole === 'HOSPITAL' && (
                   <p className="text-xs text-ink-soft bg-bone p-2.5 rounded border border-rule">
-                    <Info size={13} className="inline -mt-0.5 mr-1" />Next Step: Select your hospital network (e.g. Apollo Hospitals) and enter verification code <code>CARECLAIM-HOSPITAL-2026</code>.
+                    <Info size={13} className="inline -mt-0.5 mr-1" />Next step: Select your hospital network (e.g. Apollo Hospitals) and enter verification code <code>CARECLAIM-HOSPITAL-2026</code>.
                   </p>
                 )}
 
+                {formError && <p role="alert" className="form-error">{formError}</p>}
                 <button
                   type="submit"
                   disabled={loading}
                   className="btn btn-primary w-full py-2.5 mt-2"
                 >
-                  {loading ? 'Processing...' : registering ? 'Create Account & Continue' : 'Sign In to Dashboard'}
+                  {loading ? 'Processing...' : registering ? 'Create account and continue' : 'Sign in'}
                 </button>
               </form>
             </div>
@@ -431,7 +430,7 @@ export function Login() {
       </div>
 
       {/* Right Composition: Evaluator & Judge Presentation Showcase */}
-      <div className="hidden lg:flex w-5/12 bg-pine-deep items-center justify-center p-8 relative overflow-y-auto">
+      <div className="theme-fixed hidden lg:flex w-5/12 bg-pine-deep items-center justify-center p-8 relative overflow-y-auto">
         {/* Decorative Grid */}
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L3N2Zz4=')] opacity-50 pointer-events-none" />
 
@@ -442,7 +441,7 @@ export function Login() {
               Project Architecture & Impact
             </span>
             <h2 className="text-2xl font-serif leading-tight">
-              Instant Medical Adjudication & Rate Defense
+              Instant medical adjudication and rate defense
             </h2>
             <p className="text-xs text-bone/70 leading-relaxed">
               Every year, Indian patients lose hours at discharge counters and face inflated medical bills due to unbundled codes and lack of transparent rate benchmarks.
@@ -453,16 +452,16 @@ export function Login() {
           <div className="space-y-2.5 text-xs">
             <div className="bg-pine/40 border border-bone/10 p-3 rounded-lg space-y-1">
               <div className="font-bold text-phosphor flex items-center gap-1.5">
-                <Timer size={14} /> 10s Autonomous Turnaround
+                <Timer size={14} /> 10s autonomous turnaround
               </div>
               <p className="text-xs text-bone/80">
-                Replaces 4–6 hours of stressful discharge queue waiting with sub-10s Gemini multimodal bill processing and deterministic math checks.
+                Replaces 4 to 6 hours of stressful discharge queue waiting with sub-10s Gemini multimodal bill processing and deterministic math checks.
               </p>
             </div>
 
             <div className="bg-pine/40 border border-bone/10 p-3 rounded-lg space-y-1">
               <div className="font-bold text-phosphor flex items-center gap-1.5">
-                <ShieldCheck size={14} /> Overcharge & Duplicate Guard
+                <ShieldCheck size={14} /> Overcharge and duplicate guard
               </div>
               <p className="text-xs text-bone/80">
                 Audits raw bill entries against standard rate cards; flags duplicate surgical supplies, inflated room rents, and cosmetic procedures.
@@ -471,7 +470,7 @@ export function Login() {
 
             <div className="bg-pine/40 border border-bone/10 p-3 rounded-lg space-y-1">
               <div className="font-bold text-phosphor flex items-center gap-1.5">
-                <MessageSquare size={14} /> Patient-Hospital Dispute Desk
+                <MessageSquare size={14} /> Patient & hospital dispute desk
               </div>
               <p className="text-xs text-bone/80">
                 Patients question suspicious charges with 1 click; hospital billing staff review and resolve queries in a shared team queue.
@@ -483,10 +482,10 @@ export function Login() {
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-paper text-ink rounded-lg p-4 shadow-xl border-t-4 border-pine relative space-y-3"
+            className="bg-paper text-ink rounded-lg p-4 shadow-lg border border-rule relative space-y-3"
           >
             <div className="flex justify-between items-center border-b border-rule pb-2">
-              <span className="text-[11px] font-mono text-ink-soft uppercase tracking-widest">
+              <span className="text-[11px] font-mono text-ink-soft uppercase tracking-wider">
                 Real-Time Adjudication
               </span>
               <span className="text-[11px] font-mono bg-moss/10 text-moss px-2 py-0.5 rounded font-bold uppercase">
@@ -496,15 +495,15 @@ export function Login() {
 
             <div className="text-xs font-mono space-y-1 text-ink-soft">
               <div className="flex justify-between">
-                <span>Total Billed:</span>
+                <span>Total billed:</span>
                 <span className="font-bold text-ink">₹2,40,000</span>
               </div>
               <div className="flex justify-between text-vermilion">
-                <span>Flagged (Overpriced + Cosmetic):</span>
+                <span>Flagged (overpriced + cosmetic):</span>
                 <span>- ₹24,000</span>
               </div>
               <div className="flex justify-between text-pine font-bold border-t border-rule pt-1 text-sm">
-                <span>Approved Payout (90%):</span>
+                <span>Approved payout (90%):</span>
                 <span>₹1,94,400</span>
               </div>
             </div>
@@ -513,9 +512,9 @@ export function Login() {
           {/* Evaluator Flow */}
           <div className="p-3 bg-bone/10 rounded-lg text-xs space-y-1 font-mono text-bone/80">
             <div className="text-phosphor font-bold uppercase text-[11px]">Recommended Evaluation Path:</div>
-            <div>1. Sign in as Hospital ➔ New Claim ➔ Run Agent</div>
+            <div>1. Sign in as hospital → New claim → Run adjudication</div>
             <div>2. Review terminal reasoning & line-item flags</div>
-            <div>3. Sign in as Patient ➔ Review bill & raise dispute</div>
+            <div>3. Sign in as patient → Review bill & raise dispute</div>
           </div>
         </div>
       </div>

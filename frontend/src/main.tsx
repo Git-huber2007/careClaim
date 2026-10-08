@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
-import { Toaster } from 'sonner'
+import { ThemedToaster } from './components/ThemedToaster'
 import { MotionConfig } from 'motion/react'
 import '@fontsource/instrument-serif'
 import '@fontsource/geist-sans'
@@ -16,7 +16,7 @@ createRoot(document.getElementById('root')!).render(
       <MotionConfig reducedMotion="user">
         <App />
       </MotionConfig>
-      <Toaster position="bottom-right" />
+      <ThemedToaster />
     </BrowserRouter>
   </StrictMode>,
 )

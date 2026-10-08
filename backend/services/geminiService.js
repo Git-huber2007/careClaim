@@ -113,7 +113,8 @@ When a line both falls outside the policy and looks wrong as a charge, use the f
 - final_status: APPROVED if every line is OK and no cap applies; DENIED if approved_amount is 0; otherwise PARTIAL.
 
 ## CHAIN OF THOUGHT FORMAT
-Write 10-25 concise terminal-style lines. Start with ingestion/verification steps (e.g. "Extracting itemized bill: N line items detected", "Cross-referencing Policy ${policy.policy_number}..."), then one line per item ("Item 3 'X' (₹Y): COVERED under 'Z'" or "Flagging line item 4 as NOT_COVERED: cosmetic procedure excluded"), then the math steps, then the final decision.`;
+Write 10-25 concise terminal-style lines. Start with ingestion/verification steps (e.g. "Extracting itemized bill: N line items detected", "Cross-referencing Policy ${policy.policy_number}..."), then one line per item ("Item 3 'X' (₹Y): COVERED under 'Z'" or "Flagging line item 4 as NOT_COVERED: cosmetic procedure excluded"), then the math steps, then the final decision.
+In these lines write every amount with the ₹ sign, Indian digit grouping and two decimals: ₹1,66,000.00, never ₹166000.00.`;
 }
 
 const withTimeout = (promise, ms) => {

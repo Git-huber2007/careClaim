@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { AccountContext } from '../lib/account';
 import type { Profile } from '../lib/account';
 import { Loading } from './Loading';
+import { ErrorState } from './ErrorState';
 
 /**
  * Gate for every signed-in page. The backend refuses claim routes until the
@@ -44,18 +45,14 @@ export function RequireAccount({ children }: { children: ReactNode }) {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-paper">
-        <div className="w-full max-w-md bg-paper p-8 rounded-lg border border-rule text-center space-y-4 shadow-sm">
-          <div className="font-serif text-2xl text-pine-deep">Unable to load your account</div>
-          <div className="text-sm text-vermilion font-mono bg-vermilion/5 border border-vermilion/20 p-3 rounded">{error}</div>
-          <div className="flex justify-center gap-3 pt-2">
-            <button onClick={() => window.location.reload()} className="btn btn-secondary">
-              Retry
-            </button>
-            <button onClick={handleSignOut} className="btn btn-primary">
-              Sign In Again
-            </button>
-          </div>
-        </div>
+        <ErrorState title="Unable to load your account" message={error}>
+          <button onClick={() => window.location.reload()} className="btn btn-secondary">
+            Retry
+          </button>
+          <button onClick={handleSignOut} className="btn btn-primary">
+            Sign in again
+          </button>
+        </ErrorState>
       </div>
     );
   }

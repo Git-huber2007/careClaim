@@ -10,19 +10,55 @@
   --color-pine-deep: #0A3530;
   --color-phosphor: #5CFF9D;
   --color-term-bg: #0A0F0D;
-  --color-moss: #2E7D4F;
+  /* Moss and vermilion are dark enough to read as text on their own 10% tints. */
+  --color-moss: #28704A;
   --color-amber: #B7791F;
   /* Amber dark enough to read as text on the light surfaces; plain amber is for fills and borders. */
   --color-amber-ink: #7F5210;
-  --color-vermilion: #C0392B;
+  --color-vermilion: #B33427;
   /* Text tones for the terminal's dark surface, where the light-surface ones are too dim. */
   --color-term-dim: #8C9892;
   --color-term-ok: #62C48A;
   --color-term-deny: #F2796B;
+  /* The veil behind a modal: dark in both themes. */
+  --color-scrim: #121B18;
 
   --font-sans: "Geist Sans", "Geist", sans-serif;
   --font-mono: "Geist Mono", monospace;
   --font-serif: "Instrument Serif", serif;
+}
+
+/* Dark theme: the same tokens with values for a dark page. lib/theme.ts sets the attribute.
+   A light-surface colour used as text (bone on a pine button) flips along with its surface. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bone: #0E1412;
+  --color-paper: #161D1A;
+  --color-ink: #ECE7DC;
+  --color-ink-soft: #A7B0AA;
+  --color-rule: #35423D;
+  --color-pine: #6FCBB6;
+  --color-pine-deep: #CFEDE4;
+  --color-moss: #62C48A;
+  --color-amber: #D9A441;
+  --color-amber-ink: #E6B55C;
+  --color-vermilion: #F2796B;
+}
+
+/* Parts drawn dark-on-phosphor by design (the terminal, the AI badge, the sign-in side panel)
+   keep the light theme's values in both themes. Keep in step with @theme above. */
+.theme-fixed {
+  --color-bone: #F2EEE5;
+  --color-paper: #FAF8F2;
+  --color-ink: #121B18;
+  --color-ink-soft: #4A5651;
+  --color-rule: #D9D3C4;
+  --color-pine: #0F4C43;
+  --color-pine-deep: #0A3530;
+  --color-moss: #28704A;
+  --color-amber: #B7791F;
+  --color-amber-ink: #7F5210;
+  --color-vermilion: #B33427;
 }
 
 body {
@@ -56,21 +92,50 @@ body {
     @apply bg-pine text-bone hover:bg-pine-deep;
   }
   .btn-secondary {
-    @apply border border-rule bg-paper text-pine-deep hover:bg-bone;
+    @apply border border-rule hover:border-pine/50 bg-paper text-pine-deep hover:bg-bone;
   }
-  /* Starts an adjudication run: the one phosphor control. */
+  /* Starts an adjudication run: high-contrast action control without neon bloom. */
   .btn-run {
-    @apply bg-phosphor text-pine-deep font-mono text-xs font-bold uppercase tracking-widest hover:bg-phosphor/80;
-    box-shadow: 0 0 15px rgb(92 255 157 / 0.3);
+    @apply bg-phosphor text-pine-deep font-mono text-xs font-bold uppercase tracking-wider hover:bg-phosphor/90;
+    --color-pine-deep: #0A3530;
+  }
+  /* One style for every set of tabs: the top navigation, the dispute filters, the sign-in switch. */
+  .tab {
+    @apply rounded px-3 py-1.5 text-sm font-medium text-ink-soft transition-colors cursor-pointer hover:bg-rule/40 hover:text-ink;
+  }
+  .tab-active {
+    @apply bg-pine text-bone hover:bg-pine hover:text-bone;
   }
   .field {
-    @apply w-full rounded border border-rule bg-bone px-3 py-2 text-sm;
+    @apply w-full rounded border border-rule bg-bone px-3 py-2 text-sm read-only:bg-rule/20 read-only:cursor-not-allowed read-only:text-ink-soft;
+  }
+  .field-label {
+    @apply mb-1 block font-mono text-xs uppercase tracking-wider text-ink-soft;
+  }
+  /* What went wrong with a form, shown in the form and left there until the next attempt. */
+  .form-error {
+    @apply rounded border border-vermilion/20 bg-vermilion/5 p-2.5 text-sm text-vermilion;
   }
 }
 
 /* A printable overlay is portalled to <body> and marked data-print-root; while
-   one is open, everything else on the page is left out of the printout. */
+   one is open, everything else on the page is left out of the printout.
+   In dark mode, tokens reset to light values so printed slips are crisp on paper. */
 @media print {
+  :root {
+    color-scheme: light;
+    --color-bone: #F2EEE5;
+    --color-paper: #FAF8F2;
+    --color-ink: #121B18;
+    --color-ink-soft: #4A5651;
+    --color-rule: #D9D3C4;
+    --color-pine: #0F4C43;
+    --color-pine-deep: #0A3530;
+    --color-moss: #28704A;
+    --color-amber: #B7791F;
+    --color-amber-ink: #7F5210;
+    --color-vermilion: #B33427;
+  }
   body:has(> [data-print-root]) > :not([data-print-root]) {
     display: none;
   }

@@ -37,6 +37,12 @@ export function DisputeCard({ dispute, onChanged, showClaim = false }: DisputeCa
       toast.error('Write a short response for the patient first.');
       return;
     }
+    if (decision === 'ACCEPTED') {
+      const ok = window.confirm(
+        `Confirm agreeing with this dispute? This will withdraw the ${formatCurrency(dispute.cost)} charge for "${dispute.item_name}" and reduce what the patient owes.`
+      );
+      if (!ok) return;
+    }
     setBusy(true);
     try {
       const { dispute: answered, charge_withdrawn } = await fetchApi(`/api/disputes/${dispute.id}/respond`, {

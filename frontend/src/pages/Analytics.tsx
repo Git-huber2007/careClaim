@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router';
+import { BarChart3 } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import { useAccount } from '../lib/account';
 import { flagLabel, isSuspicious } from '../lib/claims';
 import { formatCurrency } from '../lib/format';
 import { Loading } from '../components/Loading';
+import { EmptyState } from '../components/EmptyState';
+import { PageTitle } from '../components/PageTitle';
+import { ErrorState } from '../components/ErrorState';
 
 interface AnalyticsData {
   total_claims: number;
@@ -29,12 +34,36 @@ export function Analytics() {
   const isPatient = useAccount().role === 'PATIENT';
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [error, setError] = useState('');
+  // The day whose numbers are spelled out under the chart; the latest day until one is picked.
+  const [pickedDay, setPickedDay] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchApi('/api/analytics').then(setData).catch(err => setError(err.message));
+  const load = useCallback(
+    () =>
+      fetchApi('/api/analytics')
+        .then(res => {
+          setData(res);
+          setError('');
+        })
+        .catch((err: any) => setError(err.message)),
+    []
+  );
+
+  useEffect(() => { load(); }, [load]);
+
+  // Run once, when the chart first appears: later renders must not undo the reader's own scrolling.
+  const showLatestDays = useCallback((chart: HTMLDivElement | null) => {
+    if (chart) chart.scrollLeft = chart.scrollWidth;
   }, []);
 
-  if (error) return <div className="p-10 text-center text-sm text-vermilion font-mono">Could not load the analytics: {error}</div>;
+  if (error) {
+    return (
+      <div className="p-6 md:p-10">
+        <ErrorState title="Unable to load the analytics" message={error}>
+          <button onClick={load} className="btn btn-primary">Retry</button>
+        </ErrorState>
+      </div>
+    );
+  }
   if (!data) return <Loading />;
 
   const { totals } = data;
@@ -42,9 +71,11 @@ export function Analytics() {
   const maxFlagAmount = Math.max(1, ...data.by_flag.map(f => f.amount));
   const maxItemAmount = Math.max(1, ...data.top_flagged_items.map(i => i.amount));
   const maxDayBilled = Math.max(1, ...data.daily.map(d => d.billed));
+  const day = data.daily.find(d => d.date === pickedDay) ?? data.daily[data.daily.length - 1];
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
+      <PageTitle>Analytics</PageTitle>
       <header className="border-b border-rule pb-4">
         <h1 className="text-3xl font-serif text-pine-deep">Analytics</h1>
         <p className="text-sm text-ink-soft mt-1">
@@ -53,7 +84,15 @@ export function Analytics() {
       </header>
 
       {data.total_claims === 0 ? (
-        <div className="bg-paper rounded-lg border border-rule p-10 text-center text-ink-soft">Nothing to show yet.</div>
+        <div className="bg-paper rounded-lg border border-rule">
+          <EmptyState
+            icon={<BarChart3 size={24} />}
+            title="Nothing to chart yet"
+            actions={<Link to="/claims/new" className="btn btn-primary">{isPatient ? 'Check a bill' : 'New claim'}</Link>}
+          >
+            {isPatient ? 'Totals appear here once one of your bills has been checked.' : 'Totals appear here once a claim has been filed and adjudicated.'}
+          </EmptyState>
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -110,19 +149,38 @@ export function Analytics() {
               )}
             </Panel>
 
-            <Panel title="Last 14 days with activity" note="Bar height: amount billed that day.">
-              <div className="flex items-end gap-1.5 h-36">
-                {data.daily.map(d => (
-                  <div key={d.date} className="flex-1 h-full flex flex-col items-center gap-1" title={`${d.date}: ${d.claims} filed, ${formatCurrency(d.billed)} billed, ${formatCurrency(d.approved)} approved`}>
-                    <span className="text-[11px] font-mono text-ink-soft">{d.claims}</span>
-                    {/* The bar's height is a share of this box alone, so the labels cannot squeeze tall bars to one size. */}
-                    <div className="flex-1 w-full flex items-end">
-                      <div className="w-full bg-pine/70 rounded-t" style={{ height: `${Math.max(4, (d.billed / maxDayBilled) * 100)}%` }} />
-                    </div>
-                    <span className="text-[11px] font-mono text-ink-soft">{d.date.slice(5)}</span>
-                  </div>
-                ))}
+            <Panel title="Last 14 days with activity" note={`Bar height: amount billed that day. The tallest bar is ${formatCurrency(maxDayBilled)}. Select a day for its numbers.`}>
+              {/* Each day keeps room for its date; on a phone a full fortnight scrolls sideways inside the panel, starting at the latest days. */}
+              <div ref={showLatestDays} className="overflow-x-auto">
+                <div className="flex items-end gap-1.5 h-36">
+                  {data.daily.map(d => (
+                    // A button, not a hover tooltip: a day's numbers have to be reachable by touch and by keyboard.
+                    <button
+                      key={d.date}
+                      type="button"
+                      aria-pressed={d.date === day?.date}
+                      aria-label={`${d.date}: ${d.claims} filed, ${formatCurrency(d.billed)} billed, ${formatCurrency(d.approved)} approved`}
+                      onClick={() => setPickedDay(d.date)}
+                      className="group flex-1 min-w-8 h-full flex flex-col items-center gap-1 rounded cursor-pointer"
+                    >
+                      <span className="text-[11px] font-mono text-ink-soft">{d.claims}</span>
+                      {/* The bar's height is a share of this box alone, so the labels cannot squeeze tall bars to one size. */}
+                      <div className="flex-1 w-full flex items-end">
+                        <div
+                          className={`w-full rounded-t transition-colors ${d.date === day?.date ? 'bg-pine' : 'bg-pine/40 group-hover:bg-pine/70'}`}
+                          style={{ height: `${Math.max(4, (d.billed / maxDayBilled) * 100)}%` }}
+                        />
+                      </div>
+                      <span className={`text-[11px] font-mono ${d.date === day?.date ? 'text-ink font-bold' : 'text-ink-soft'}`}>{d.date.slice(5)}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
+              {day && (
+                <p aria-live="polite" className="mt-3 rounded bg-bone px-3 py-2 text-sm font-mono">
+                  <span className="font-bold">{day.date}</span> · {day.claims} filed · {formatCurrency(day.billed)} billed · {formatCurrency(day.approved)} approved
+                </p>
+              )}
             </Panel>
           </div>
         </>
@@ -133,9 +191,9 @@ export function Analytics() {
 
 function Figure({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="p-4 rounded-lg border border-rule bg-paper shadow-sm">
+    <div className="p-4 rounded-lg border border-rule bg-paper">
       <div className="text-xs font-mono uppercase tracking-wider text-ink-soft mb-1.5">{label}</div>
-      <div className="text-2xl md:text-3xl font-serif text-pine-deep">{value}</div>
+      <div className="text-2xl md:text-3xl font-mono tabular-nums font-bold text-pine-deep">{value}</div>
       {sub && <div className="text-xs font-mono text-ink-soft mt-1">{sub}</div>}
     </div>
   );
@@ -144,7 +202,7 @@ function Figure({ label, value, sub }: { label: string; value: string; sub?: str
 function Panel({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
     <section className="bg-paper rounded-lg border border-rule p-6">
-      <h2 className="font-mono text-xs uppercase tracking-widest text-ink-soft border-b border-rule pb-2 mb-4">{title}</h2>
+      <h2 className="font-sans text-xs font-semibold uppercase tracking-wider text-ink-soft border-b border-rule pb-2 mb-4">{title}</h2>
       {children}
       {note && <p className="text-xs text-ink-soft mt-4">{note}</p>}
     </section>

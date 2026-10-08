@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
+import { PageTitle } from '../components/PageTitle';
 
 const MIN_PASSWORD = 6; // Supabase's default minimum
 
@@ -16,6 +17,7 @@ export function ResetPassword() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -27,14 +29,9 @@ export function ResetPassword() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < MIN_PASSWORD) {
-      toast.error(`Use at least ${MIN_PASSWORD} characters.`);
-      return;
-    }
-    if (password !== confirm) {
-      toast.error('The two passwords do not match.');
-      return;
-    }
+    if (password.length < MIN_PASSWORD) return setFormError(`Use at least ${MIN_PASSWORD} characters.`);
+    if (password !== confirm) return setFormError('The two passwords do not match.');
+    setFormError('');
     setSaving(true);
     try {
       const { error } = await supabase.auth.updateUser({ password });
@@ -42,7 +39,7 @@ export function ResetPassword() {
       toast.success('Password updated');
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
-      toast.error(err.message || 'Could not update the password.');
+      setFormError(err.message || 'Could not update the password.');
     } finally {
       setSaving(false);
     }
@@ -50,7 +47,8 @@ export function ResetPassword() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-paper p-8 rounded-lg border border-rule space-y-6 shadow-sm">
+      <PageTitle>Set a new password</PageTitle>
+      <div className="w-full max-w-md bg-paper p-8 rounded-lg border border-rule space-y-6">
         <h1 className="text-3xl font-serif text-pine-deep">Set a new password</h1>
 
         {linkState === 'checking' && <div className="font-mono text-sm">Checking your reset link...</div>}
@@ -69,7 +67,7 @@ export function ResetPassword() {
         {linkState === 'valid' && (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="new-password" className="block text-xs font-mono uppercase tracking-wider text-ink-soft mb-1">New Password</label>
+              <label htmlFor="new-password" className="field-label">New Password</label>
               <input
                 id="new-password"
                 type="password"
@@ -81,7 +79,7 @@ export function ResetPassword() {
               />
             </div>
             <div>
-              <label htmlFor="confirm-password" className="block text-xs font-mono uppercase tracking-wider text-ink-soft mb-1">Repeat New Password</label>
+              <label htmlFor="confirm-password" className="field-label">Repeat New Password</label>
               <input
                 id="confirm-password"
                 type="password"
@@ -92,12 +90,13 @@ export function ResetPassword() {
                 className="field"
               />
             </div>
+            {formError && <p role="alert" className="form-error">{formError}</p>}
             <button
               type="submit"
               disabled={saving}
               className="btn btn-primary w-full py-2.5"
             >
-              {saving ? 'Saving...' : 'Update Password'}
+              {saving ? 'Saving...' : 'Update password'}
             </button>
           </form>
         )}

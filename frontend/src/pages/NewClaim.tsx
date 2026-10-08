@@ -5,7 +5,8 @@ import { useAccount } from '../lib/account';
 import { toBillLine } from '../lib/claims';
 import { formatCurrency } from '../lib/format';
 import { ICD10_CODES, describeIcd10, looksLikeIcd10 } from '../lib/icd10';
-import { Upload } from 'lucide-react';
+import { Upload, X } from 'lucide-react';
+import { PageTitle } from '../components/PageTitle';
 import { toast } from 'sonner';
 
 // The file travels as base64 inside JSON (a third larger), and the API accepts 15 MB.
@@ -291,9 +292,10 @@ export function NewClaim() {
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
-      <header className="flex justify-between items-end border-b border-rule pb-4">
+      <PageTitle>{isPatient ? 'Check a bill' : 'New claim'}</PageTitle>
+      <header className="flex flex-wrap justify-between items-end gap-3 border-b border-rule pb-4">
         <div>
-          <h1 className="text-3xl font-serif text-pine-deep">{isPatient ? 'Check a Bill' : 'New Claim Intake'}</h1>
+          <h1 className="text-3xl font-serif text-pine-deep">{isPatient ? 'Check a bill' : 'New claim intake'}</h1>
           {isPatient && (
             <p className="text-sm text-ink-soft mt-1">Enter or scan a hospital bill to see what your policy pays and which charges are worth questioning.</p>
           )}
@@ -302,16 +304,16 @@ export function NewClaim() {
           <select
             aria-label="Load a sample scenario"
             onChange={e => loadScenario(Number(e.target.value))}
-            className="bg-bone border border-rule rounded px-3 py-1.5 text-sm font-mono"
+            className="max-w-full bg-bone border border-rule rounded px-3 py-1.5 text-sm font-mono"
           >
-            <option value="0">Load Sample Scenario...</option>
-            <option value="1">1. Clean Approval (Pneumonia)</option>
-            <option value="2">2. Partial - Cosmetic Exclusion</option>
-            <option value="3">3. Fraud - Duplicate & Overcharge</option>
-            <option value="4">4. Cardiac Angioplasty (0% Copay)</option>
-            <option value="5">5. Maternity C-Section (Luxury Exclusion)</option>
-            <option value="6">6. Oncology Chemotherapy (5% Copay)</option>
-            <option value="7">7. Orthopedic Knee Replacement (Overcharge)</option>
+            <option value="0">Load a sample scenario…</option>
+            <option value="1">1. Clean approval (pneumonia)</option>
+            <option value="2">2. Partial: cosmetic exclusion</option>
+            <option value="3">3. Fraud: duplicate and overcharge</option>
+            <option value="4">4. Cardiac angioplasty (0% copay)</option>
+            <option value="5">5. Maternity C-section (luxury exclusion)</option>
+            <option value="6">6. Oncology chemotherapy (5% copay)</option>
+            <option value="7">7. Orthopedic knee replacement (overcharge)</option>
           </select>
         )}
       </header>
@@ -319,19 +321,41 @@ export function NewClaim() {
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-6">
           <div className="bg-paper p-6 rounded-lg border border-rule space-y-4">
-            <h2 className="font-mono text-sm uppercase tracking-wider text-pine-deep border-b border-rule pb-2">Patient Details</h2>
+            <h2 className="font-mono text-xs uppercase tracking-widest text-ink-soft border-b border-rule pb-2">Patient Details</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="claim-patient-id" className="block text-xs font-mono uppercase text-ink-soft mb-1">Patient ID</label>
+                <label htmlFor="claim-patient-id" className="field-label">Patient ID</label>
                 <input id="claim-patient-id" required readOnly={isPatient} value={patientId} onChange={e => setPatientId(e.target.value)} placeholder="PAT-1001" className="field" />
               </div>
               <div>
-                <label htmlFor="claim-policy-number" className="block text-xs font-mono uppercase text-ink-soft mb-1">Policy Number</label>
-                <input id="claim-policy-number" required value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} placeholder="STAR-402-GOLD" className="field" />
+                <label htmlFor="claim-policy-number" className="field-label">Policy Number</label>
+                {isPatient && policies.length > 1 ? (
+                  <select
+                    id="claim-policy-number"
+                    required
+                    value={policyNumber}
+                    onChange={e => setPolicyNumber(e.target.value)}
+                    className="field font-mono"
+                  >
+                    {policies.map(p => (
+                      <option key={p.policy_number} value={p.policy_number}>{p.policy_number}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id="claim-policy-number"
+                    required
+                    readOnly={isPatient}
+                    value={policyNumber}
+                    onChange={e => setPolicyNumber(e.target.value)}
+                    placeholder="STAR-402-GOLD"
+                    className="field font-mono"
+                  />
+                )}
               </div>
             </div>
             <div>
-              <label htmlFor="claim-diagnosis" className="block text-xs font-mono uppercase text-ink-soft mb-1">Diagnosis Code</label>
+              <label htmlFor="claim-diagnosis" className="field-label">Diagnosis Code</label>
               <input id="claim-diagnosis" required list="icd10-codes" autoComplete="off" value={diagnosis} onChange={e => setDiagnosis(e.target.value)} placeholder="ICD-10, e.g. K35.80" aria-describedby="claim-diagnosis-hint" className="field" />
               <datalist id="icd10-codes">
                 {Object.entries(ICD10_CODES).map(([code, name]) => (
@@ -383,39 +407,73 @@ export function NewClaim() {
                 disabled={extracting}
                 className="btn btn-sm btn-secondary"
               >
-                <Upload size={13} /> {extracting ? 'Extracting…' : 'Upload Document'}
+                <Upload size={13} /> {extracting ? 'Extracting…' : 'Upload document'}
               </button>
             </div>
           </div>
 
           <div className="bg-paper p-6 rounded-lg border border-rule space-y-4">
             <div className="flex justify-between items-end border-b border-rule pb-2">
-              <h2 className="font-mono text-sm uppercase tracking-wider text-pine-deep">Itemized Bill</h2>
+              <h2 className="font-mono text-xs uppercase tracking-widest text-ink-soft">Itemized Bill</h2>
               <div className="font-mono font-bold text-lg text-pine-deep">Total: {formatCurrency(totalBilled)}</div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3 sm:space-y-2">
+              {/* Column headings. On a phone each line stacks (name, then cost and quantity) and the two number boxes carry their own label. */}
+              <div aria-hidden className="hidden sm:flex gap-2 font-mono text-xs uppercase tracking-wider text-ink-soft">
+                <span className="flex-1">Item</span>
+                <span className="w-32 pr-3 text-right">Cost (₹)</span>
+                <span className="w-16 text-center">Qty</span>
+                <span className="w-8" />
+              </div>
               {items.map((item, idx) => (
-                <div key={idx} className="flex gap-2 items-center">
+                <div key={idx} className="bg-bone/40 sm:bg-transparent p-2.5 sm:p-0 rounded border sm:border-0 border-rule/50 space-y-2 sm:space-y-0 sm:flex sm:gap-2 sm:items-center">
                   <input
                     value={item.item_name}
                     onChange={e => updateItem(idx, { item_name: e.target.value })}
                     aria-label={`Line ${idx + 1} item name`}
-                    className="flex-1 bg-bone border border-rule rounded px-3 py-2 text-sm" placeholder="Item Name"
+                    className="field sm:flex-1" placeholder="Item name"
                   />
-                  <input
-                    type="number" value={item.cost}
-                    onChange={e => updateItem(idx, { cost: Number(e.target.value) })}
-                    aria-label={`Line ${idx + 1} cost in rupees`}
-                    className="w-32 bg-bone border border-rule rounded px-3 py-2 text-sm font-mono text-right" placeholder="Cost"
-                  />
-                  <input
-                    type="number" value={item.quantity} min={1}
-                    onChange={e => updateItem(idx, { quantity: Number(e.target.value) })}
-                    aria-label={`Line ${idx + 1} quantity`}
-                    className="w-16 bg-bone border border-rule rounded px-2 py-2 text-sm font-mono text-center" placeholder="Qty"
-                  />
-                  <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))} aria-label={`Remove line ${idx + 1}`} className="text-vermilion px-2 hover:bg-vermilion/10 rounded">×</button>
+                  <div className="flex gap-2 items-center">
+                    <label className="flex flex-1 min-w-0 items-center gap-1.5 sm:contents">
+                      <span className="sm:hidden font-mono text-xs text-ink-soft shrink-0">Cost ₹</span>
+                      <input
+                        type="number" min={0} step="any" inputMode="decimal" value={item.cost || ''}
+                        onChange={e => updateItem(idx, { cost: Math.max(0, Number(e.target.value) || 0) })}
+                        aria-label={`Line ${idx + 1} cost in rupees`}
+                        className="field flex-1 sm:w-32 font-mono text-right" placeholder="Cost"
+                      />
+                    </label>
+                    <label className="flex items-center gap-1.5 sm:contents">
+                      <span className="sm:hidden font-mono text-xs text-ink-soft shrink-0">Qty</span>
+                      <input
+                        type="number" value={item.quantity} min={1}
+                        onChange={e => updateItem(idx, { quantity: Number(e.target.value) })}
+                        aria-label={`Line ${idx + 1} quantity`}
+                        className="field w-16 px-2 font-mono text-center" placeholder="Qty"
+                      />
+                    </label>
+                    {items.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => setItems(items.filter((_, i) => i !== idx))}
+                        aria-label={`Remove line ${idx + 1}`}
+                        className="w-8 h-8 shrink-0 flex items-center justify-center rounded text-vermilion hover:bg-vermilion/10 cursor-pointer"
+                      >
+                        <X size={16} />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setItems([BLANK_ROW])}
+                        title="Clear line"
+                        aria-label="Clear line"
+                        className="w-8 h-8 shrink-0 flex items-center justify-center rounded text-ink-soft hover:bg-rule/40 cursor-pointer"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -424,7 +482,7 @@ export function NewClaim() {
               onClick={() => setItems([...items, BLANK_ROW])}
               className="text-sm text-pine font-medium hover:underline"
             >
-              + Add Line Item
+              + Add line item
             </button>
           </div>
         </div>
@@ -435,7 +493,7 @@ export function NewClaim() {
             disabled={submitting || items.length === 0}
             className="btn btn-primary w-full py-2.5"
           >
-            {submitting ? 'Submitting...' : isPatient ? 'Save and Check Bill' : 'Submit Claim'}
+            {submitting ? 'Submitting...' : isPatient ? 'Save and check bill' : 'Submit claim'}
           </button>
 
           <button
@@ -444,12 +502,15 @@ export function NewClaim() {
             disabled={estimating || items.length === 0}
             className="btn btn-secondary w-full py-2.5"
           >
-            {estimating ? 'Estimating...' : 'Estimate Payout First'}
+            {estimating ? 'Estimating...' : 'Estimate payout first'}
           </button>
 
           {estimate?.billKey === billKey && (
-            <div className="bg-paper p-5 rounded-lg border-t-4 border-t-pine border border-rule shadow-sm text-sm" aria-live="polite">
-              <div className="text-xs font-mono uppercase tracking-wider text-pine mb-3">Estimate · nothing saved</div>
+            <div className="bg-paper p-5 rounded-lg border border-rule text-sm" aria-live="polite">
+              <div className="flex items-center justify-between mb-3 border-b border-rule pb-2">
+                <span className="text-xs font-mono uppercase tracking-wider text-pine font-bold">Estimate</span>
+                <span className="text-[11px] font-mono text-ink-soft bg-bone px-2 py-0.5 rounded">Nothing saved</span>
+              </div>
               <div className="space-y-2 font-mono">
                 <EstimateRow label="Bill total" value={estimate.breakdown.total_billed} />
                 {estimate.breakdown.excluded_total > 0 && <EstimateRow label="Not payable (see below)" value={-estimate.breakdown.excluded_total} />}
@@ -476,12 +537,15 @@ export function NewClaim() {
           )}
 
           {policyData ? (
-            <div className="bg-paper p-5 rounded-lg border-t-4 border-t-moss border border-rule shadow-sm">
-              <div className="text-xs font-mono uppercase tracking-wider text-moss mb-3">{isPatient ? 'Your Policy' : 'Policy Match Found'}</div>
-              <div className="font-serif text-xl text-pine-deep mb-4">{policyData.policy_number}</div>
+            <div className="bg-paper p-5 rounded-lg border border-rule">
+              <div className="flex items-center justify-between mb-3 border-b border-rule pb-2">
+                <span className="text-xs font-mono uppercase tracking-wider text-moss font-bold">{isPatient ? 'Your Policy' : 'Policy Match Found'}</span>
+                <span className="w-2 h-2 rounded-full bg-moss" />
+              </div>
+              <div className="font-mono text-lg font-bold text-pine-deep mb-4">{policyData.policy_number}</div>
               <div className="space-y-2 font-mono text-sm border-t border-rule pt-3">
                 <div className="flex justify-between">
-                  <span className="text-ink-soft">Coverage Limit</span>
+                  <span className="text-ink-soft">Coverage limit</span>
                   <span className="font-bold">{formatCurrency(policyData.max_coverage_limit)}</span>
                 </div>
                 <div className="flex justify-between">

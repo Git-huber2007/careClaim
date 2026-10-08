@@ -4,6 +4,7 @@ import { fetchApi } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { Check, Zap } from 'lucide-react';
+import { PageTitle } from '../components/PageTitle';
 
 const ROLES = [
   { role: 'HOSPITAL', title: 'Hospital staff', text: 'Submit discharge bills and run the adjudication agent.' },
@@ -22,6 +23,7 @@ export function AccountSetup() {
   const [accessCode, setAccessCode] = useState('');
   const [codeRequired, setCodeRequired] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -38,6 +40,7 @@ export function AccountSetup() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
     setSubmitting(true);
     try {
       const selectedOrg = hospitalOrg === 'OTHER' ? customOrg.trim() : hospitalOrg;
@@ -58,7 +61,7 @@ export function AccountSetup() {
       // The server asks for a code this page did not know about (its first
       // request failed, or was still out): show the field to enter it in.
       if (err.status === 403 && role === 'HOSPITAL') setCodeRequired(true);
-      toast.error(err.message);
+      setFormError(err.message);
     } finally {
       setSubmitting(false);
     }
@@ -66,7 +69,8 @@ export function AccountSetup() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-paper">
-      <form onSubmit={handleSubmit} className="w-full max-w-lg bg-paper p-8 rounded-lg border border-rule space-y-6 shadow-xs">
+      <PageTitle>Set up your account</PageTitle>
+      <form onSubmit={handleSubmit} className="w-full max-w-lg bg-paper p-8 rounded-lg border border-rule space-y-6">
         <div>
           <div className="flex items-center justify-between mb-1">
             <span className="text-[11px] font-mono uppercase bg-pine/10 text-pine-deep font-bold px-2 py-0.5 rounded border border-pine/20">
@@ -89,7 +93,7 @@ export function AccountSetup() {
               onClick={() => setRole(r.role)}
               className={`text-left p-4 rounded-lg border transition-all cursor-pointer ${
                 role === r.role
-                  ? 'border-pine bg-pine/5 ring-1 ring-pine shadow-xs'
+                  ? 'border-pine bg-pine/5 ring-1 ring-pine'
                   : 'border-rule bg-bone hover:border-ink-soft/50'
               }`}
             >
@@ -108,9 +112,9 @@ export function AccountSetup() {
             <div className="bg-bone border border-pine/30 rounded-lg p-3 space-y-2">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-mono font-bold text-pine-deep flex items-center gap-1">
-                  <Zap size={13} /> Judge Quick Fill
+                  <Zap size={13} /> Judge quick fill
                 </span>
-                <span className="text-xs text-ink-soft font-mono">1-Click Test Preset</span>
+                <span className="text-xs text-ink-soft font-mono">1-click test preset</span>
               </div>
               <button
                 type="button"
@@ -121,13 +125,13 @@ export function AccountSetup() {
                 }}
                 className="w-full bg-paper hover:bg-pine/5 border border-rule hover:border-pine py-1.5 px-3 rounded text-xs text-pine-deep font-medium transition-all text-left flex items-center justify-between cursor-pointer"
               >
-                <span>Apollo Hospitals + Demo Code</span>
-                <span className="font-mono text-xs text-pine font-bold">Fill Now →</span>
+                <span>Apollo Hospitals + demo code</span>
+                <span className="font-mono text-xs text-pine font-bold">Fill now →</span>
               </button>
             </div>
 
             <div>
-              <label htmlFor="setup-hospital-org" className="block text-xs font-mono uppercase text-ink-soft mb-1 font-semibold">
+              <label htmlFor="setup-hospital-org" className="field-label">
                 Hospital / Organization Queue
               </label>
               <select
@@ -149,7 +153,7 @@ export function AccountSetup() {
 
             {hospitalOrg === 'OTHER' && (
               <div>
-                <label htmlFor="setup-custom-org" className="block text-xs font-mono uppercase text-ink-soft mb-1 font-semibold">
+                <label htmlFor="setup-custom-org" className="field-label">
                   Custom Organization Name
                 </label>
                 <input
@@ -165,7 +169,7 @@ export function AccountSetup() {
 
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label htmlFor="setup-access-code" className="text-xs font-mono uppercase text-ink-soft font-semibold">
+                <label htmlFor="setup-access-code" className="field-label mb-0">
                   Hospital Staff Access Code {codeRequired && <span className="text-vermilion">*</span>}
                 </label>
                 <button
@@ -176,7 +180,7 @@ export function AccountSetup() {
                   }}
                   className="text-xs font-mono text-pine-deep bg-pine/10 hover:bg-pine/20 px-2 py-0.5 rounded cursor-pointer transition-colors"
                 >
-                  Paste Demo: CARECLAIM-HOSPITAL-2026
+                  Paste demo: CARECLAIM-HOSPITAL-2026
                 </button>
               </div>
               <input
@@ -202,9 +206,9 @@ export function AccountSetup() {
             <div className="bg-bone border border-pine/30 rounded-lg p-3 space-y-2">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-mono font-bold text-pine-deep flex items-center gap-1">
-                  <Zap size={13} /> Judge Quick Fill Presets
+                  <Zap size={13} /> Judge quick-fill presets
                 </span>
-                <span className="text-xs text-ink-soft font-mono">Pre-Seeded Policies</span>
+                <span className="text-xs text-ink-soft font-mono">Pre-seeded policies</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -237,11 +241,11 @@ export function AccountSetup() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="setup-policy-number" className="block text-xs font-mono uppercase text-ink-soft mb-1 font-semibold">Policy Number</label>
+                <label htmlFor="setup-policy-number" className="field-label">Policy Number</label>
                 <input id="setup-policy-number" required value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} placeholder="STAR-402-GOLD" className="field font-mono" />
               </div>
               <div>
-                <label htmlFor="setup-patient-id" className="block text-xs font-mono uppercase text-ink-soft mb-1 font-semibold">Patient ID</label>
+                <label htmlFor="setup-patient-id" className="field-label">Patient ID</label>
                 <input id="setup-patient-id" required value={patientId} onChange={e => setPatientId(e.target.value)} placeholder="PAT-1001" className="field font-mono" />
               </div>
             </div>
@@ -251,12 +255,14 @@ export function AccountSetup() {
           </div>
         )}
 
+        {formError && <p role="alert" className="form-error">{formError}</p>}
+
         <div className="flex items-center justify-between pt-2 border-t border-rule">
           <button type="button" onClick={() => supabase.auth.signOut().then(() => navigate('/login', { replace: true }))} className="text-sm text-ink-soft hover:underline cursor-pointer">
             Sign out
           </button>
           <button type="submit" disabled={!role || submitting} className="btn btn-primary">
-            {submitting ? 'Saving Role...' : 'Complete Setup & Enter →'}
+            {submitting ? 'Saving...' : 'Complete setup and enter →'}
           </button>
         </div>
       </form>
