@@ -40,7 +40,7 @@ export const config = {
   supabaseUrlFromKey: !configuredUrl && Boolean(supabaseUrl),
   supabaseServiceRoleKey,
   geminiApiKey: env('GEMINI_API_KEY'),
-  geminiModel: 'gemini-2.5-flash',
+  geminiModel: env('GEMINI_MODEL') || 'gemini-2.5-flash',
   // Optional cap on model requests (adjudications and bill scans) per account per day; 0 = no cap.
   aiDailyLimitPerUser: Math.max(0, Math.floor(Number(env('AI_DAILY_LIMIT_PER_USER'))) || 0),
   // Required for hospital accounts so arbitrary users cannot claim hospital status
