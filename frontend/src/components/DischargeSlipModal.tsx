@@ -46,14 +46,14 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
 
   const statusColor =
     status === 'APPROVED'
-      ? 'border-emerald-700 text-emerald-800 bg-emerald-50'
+      ? 'border-moss text-pine-deep bg-moss/10'
       : status === 'PARTIAL'
-      ? 'border-amber-700 text-amber-800 bg-amber-50'
-      : 'border-rose-700 text-rose-800 bg-rose-50';
+      ? 'border-amber text-amber-ink bg-amber/10'
+      : 'border-vermilion text-vermilion bg-vermilion/10';
 
   return createPortal(
-    <div data-print-root className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm print:static print:block print:overflow-visible print:p-0 print:bg-white print:backdrop-blur-none">
-      <div className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-paper text-ink shadow-2xl border border-rule print:max-h-none print:max-w-none print:overflow-visible print:shadow-none print:w-full print:rounded-none print:border-none">
+    <div data-print-root className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-ink/75 p-4 backdrop-blur-sm print:static print:block print:overflow-visible print:p-0 print:bg-white print:backdrop-blur-none">
+      <div role="dialog" aria-modal="true" aria-label="Discharge clearance slip" className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-paper text-ink shadow-2xl border border-rule print:max-h-none print:max-w-none print:overflow-visible print:shadow-none print:w-full print:rounded-none print:border-none">
         {/* Action Toolbar (Screen Only) */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-rule bg-bone px-6 py-3 print:hidden">
           <div className="flex items-center gap-2">
@@ -66,13 +66,14 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
             <button
               onClick={handlePrint}
               id="print-slip-btn"
-              className="inline-flex items-center gap-1.5 rounded bg-pine hover:bg-pine-deep px-3.5 py-1.5 text-xs font-medium text-bone transition-colors cursor-pointer"
+              className="btn btn-sm btn-primary"
             >
               <Printer size={14} /> Print / Save PDF
             </button>
             <button
               onClick={onClose}
               id="close-slip-btn"
+              aria-label="Close"
               className="rounded p-1.5 text-ink-soft hover:bg-paper cursor-pointer"
             >
               <X size={18} />
@@ -118,19 +119,19 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
           {/* Metadata Grid */}
           <div className="mb-6 grid grid-cols-2 gap-4 rounded border border-rule bg-bone p-4 text-xs sm:grid-cols-4 font-mono">
             <div>
-              <p className="text-[10px] text-ink-soft uppercase tracking-wider">Patient ID</p>
+              <p className="text-[11px] text-ink-soft uppercase tracking-wider">Patient ID</p>
               <p className="mt-0.5 font-bold text-ink">{claim.patient_id}</p>
             </div>
             <div>
-              <p className="text-[10px] text-ink-soft uppercase tracking-wider">Policy Number</p>
+              <p className="text-[11px] text-ink-soft uppercase tracking-wider">Policy Number</p>
               <p className="mt-0.5 font-bold text-ink">{policy?.policy_number || 'N/A'}</p>
             </div>
             <div>
-              <p className="text-[10px] text-ink-soft uppercase tracking-wider">Diagnosis (ICD-10)</p>
+              <p className="text-[11px] text-ink-soft uppercase tracking-wider">Diagnosis (ICD-10)</p>
               <p className="mt-0.5 font-bold text-ink">{claim.diagnosis_code || 'UNSPECIFIED'}</p>
             </div>
             <div>
-              <p className="text-[10px] text-ink-soft uppercase tracking-wider">Claim Reference</p>
+              <p className="text-[11px] text-ink-soft uppercase tracking-wider">Claim Reference</p>
               <p className="mt-0.5 text-ink-soft truncate">{claim.id}</p>
             </div>
           </div>
@@ -144,24 +145,24 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
             </div>
             <div className="grid grid-cols-2 divide-x divide-y sm:divide-y-0 sm:grid-cols-4 divide-rule text-center font-mono">
               <div className="p-3">
-                <p className="text-[10px] text-ink-soft uppercase">Total Billed</p>
+                <p className="text-[11px] text-ink-soft uppercase">Total Billed</p>
                 <p className="mt-1 text-base font-bold text-ink">{formatCurrency(claim.total_billed)}</p>
               </div>
               <div className="p-3">
-                <p className="text-[10px] text-ink-soft uppercase">Disallowed / Flagged</p>
+                <p className="text-[11px] text-ink-soft uppercase">Disallowed / Flagged</p>
                 <p className="mt-1 text-base font-bold text-vermilion">
                   {formatCurrency(breakdown.excluded_total ?? 0)}
                 </p>
               </div>
-              <div className="p-3 bg-emerald-500/10">
-                <p className="text-[10px] text-emerald-800 uppercase font-bold">Insurer Pays</p>
-                <p className="mt-1 text-base font-bold text-emerald-800">
+              <div className="p-3 bg-moss/10">
+                <p className="text-[11px] text-pine-deep uppercase font-bold">Insurer Pays</p>
+                <p className="mt-1 text-base font-bold text-pine-deep">
                   {formatCurrency(claim.approved_amount)}
                 </p>
               </div>
-              <div className="p-3 bg-amber-500/10">
-                <p className="text-[10px] text-amber-800 uppercase font-bold">Patient Payable</p>
-                <p className="mt-1 text-base font-bold text-amber-800">
+              <div className="p-3 bg-amber/10">
+                <p className="text-[11px] text-amber-ink uppercase font-bold">Patient Payable</p>
+                <p className="mt-1 text-base font-bold text-amber-ink">
                   {formatCurrency(patientPayable(claim))}
                 </p>
               </div>
@@ -175,7 +176,7 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
             </h3>
             <table className="w-full text-left text-xs border-collapse font-mono">
               <thead>
-                <tr className="border-b border-rule bg-bone text-[11px] text-ink-soft">
+                <tr className="border-b border-rule bg-bone text-xs text-ink-soft">
                   <th className="py-2 px-2 text-center w-8">#</th>
                   <th className="py-2 px-3 font-normal">Service / Charge Description</th>
                   <th className="py-2 px-3 text-right font-normal">Billed</th>
@@ -195,18 +196,18 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
                       <td className="py-2 px-3 text-right">{formatCurrency(item.cost)}</td>
                       <td className="py-2 px-3 text-center">
                         <span
-                          className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                          className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-bold ${
                             isOk
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-rose-100 text-rose-800'
+                              ? 'bg-moss/10 text-pine-deep'
+                              : 'bg-vermilion/10 text-vermilion'
                           }`}
                         >
                           {flagLabel(flag)}
                         </span>
                       </td>
-                      <td className="py-2 px-3 text-ink-soft font-sans text-[11px]">
+                      <td className="py-2 px-3 text-ink-soft font-sans text-xs">
                         {decision?.reason || (isOk ? 'Covered under policy schedule.' : 'Flagged for review.')}
-                        {decision?.waived && <span className="block font-medium text-emerald-800">Withdrawn by the hospital; not owed.</span>}
+                        {decision?.waived && <span className="block font-medium text-pine-deep">Withdrawn by the hospital; not owed.</span>}
                       </td>
                     </tr>
                   );
@@ -219,20 +220,20 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
           <div className="mt-12 pt-8 border-t border-rule grid grid-cols-2 gap-8 text-xs font-mono">
             <div>
               <p className="font-bold text-pine-deep font-serif text-sm">Hospital Billing & TPA Desk</p>
-              <p className="text-[11px] text-ink-soft mt-0.5">Discharge verification approved</p>
+              <p className="text-xs text-ink-soft mt-0.5">Discharge verification approved</p>
               <div className="mt-8 border-b border-ink-soft/40 w-48"></div>
-              <p className="mt-1 text-[10px] text-ink-soft">Authorized Signature & Seal</p>
+              <p className="mt-1 text-[11px] text-ink-soft">Authorized Signature & Seal</p>
             </div>
             <div className="text-right">
               <p className="font-bold text-pine-deep font-serif text-sm">CareClaim Autonomous Adjudicator</p>
-              <p className="text-[10px] text-ink-soft mt-0.5">Checksum: {shortId(claim.id)}-VERIFIED-OK</p>
+              <p className="text-[11px] text-ink-soft mt-0.5">Checksum: {shortId(claim.id)}-VERIFIED-OK</p>
               <div className="mt-8 border-b border-ink-soft/40 w-48 ml-auto"></div>
-              <p className="mt-1 text-[10px] text-ink-soft">Deterministic Math Pass</p>
+              <p className="mt-1 text-[11px] text-ink-soft">Deterministic Math Pass</p>
             </div>
           </div>
 
           {qrCode && (
-            <div className="mt-8 flex items-center justify-center gap-4 text-[11px] text-ink-soft font-mono">
+            <div className="mt-8 flex items-center justify-center gap-4 text-xs text-ink-soft font-mono">
               <img src={qrCode} alt="QR code that opens the verification page for this slip" className="h-24 w-24 border border-rule" />
               <div>
                 <p className="font-bold text-ink">Verify this slip</p>
@@ -242,7 +243,7 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
             </div>
           )}
 
-          <p className="mt-8 text-center text-[10px] text-ink-soft font-mono">
+          <p className="mt-8 text-center text-[11px] text-ink-soft font-mono">
             Automated discharge settlement generated by CareClaim AI. Subject to policy terms and IRDAI regulations.
           </p>
         </div>

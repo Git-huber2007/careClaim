@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router';
 import { RequireAccount } from './components/RequireAccount';
 import { AppShell } from './components/AppShell';
+import { Loading } from './components/Loading';
 import { supabase } from './lib/supabase';
 
 // Each page is its own chunk, so the first screen does not download the others.
@@ -34,7 +35,7 @@ export default function App() {
   }, [navigate]);
 
   return (
-    <Suspense fallback={<div className="p-10 text-center font-mono">Loading...</div>}>
+    <Suspense fallback={<Loading />}>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<Login />} />

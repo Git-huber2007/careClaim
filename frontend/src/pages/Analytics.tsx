@@ -3,6 +3,7 @@ import { fetchApi } from '../lib/api';
 import { useAccount } from '../lib/account';
 import { flagLabel, isSuspicious } from '../lib/claims';
 import { formatCurrency } from '../lib/format';
+import { Loading } from '../components/Loading';
 
 interface AnalyticsData {
   total_claims: number;
@@ -34,7 +35,7 @@ export function Analytics() {
   }, []);
 
   if (error) return <div className="p-10 text-center text-sm text-vermilion font-mono">Could not load the analytics: {error}</div>;
-  if (!data) return <div className="p-10 text-center font-mono">Loading...</div>;
+  if (!data) return <Loading />;
 
   const { totals } = data;
   const unpaid = Math.max(0, totals.billed - totals.approved);
@@ -113,12 +114,12 @@ export function Analytics() {
               <div className="flex items-end gap-1.5 h-36">
                 {data.daily.map(d => (
                   <div key={d.date} className="flex-1 h-full flex flex-col items-center gap-1" title={`${d.date}: ${d.claims} filed, ${formatCurrency(d.billed)} billed, ${formatCurrency(d.approved)} approved`}>
-                    <span className="text-[10px] font-mono text-ink-soft">{d.claims}</span>
+                    <span className="text-[11px] font-mono text-ink-soft">{d.claims}</span>
                     {/* The bar's height is a share of this box alone, so the labels cannot squeeze tall bars to one size. */}
                     <div className="flex-1 w-full flex items-end">
                       <div className="w-full bg-pine/70 rounded-t" style={{ height: `${Math.max(4, (d.billed / maxDayBilled) * 100)}%` }} />
                     </div>
-                    <span className="text-[10px] font-mono text-ink-soft">{d.date.slice(5)}</span>
+                    <span className="text-[11px] font-mono text-ink-soft">{d.date.slice(5)}</span>
                   </div>
                 ))}
               </div>
@@ -135,7 +136,7 @@ function Figure({ label, value, sub }: { label: string; value: string; sub?: str
     <div className="p-4 rounded-lg border border-rule bg-paper shadow-sm">
       <div className="text-xs font-mono uppercase tracking-wider text-ink-soft mb-1.5">{label}</div>
       <div className="text-2xl md:text-3xl font-serif text-pine-deep">{value}</div>
-      {sub && <div className="text-[10px] font-mono text-ink-soft mt-1">{sub}</div>}
+      {sub && <div className="text-xs font-mono text-ink-soft mt-1">{sub}</div>}
     </div>
   );
 }

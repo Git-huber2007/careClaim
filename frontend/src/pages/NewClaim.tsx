@@ -302,7 +302,7 @@ export function NewClaim() {
           <select
             aria-label="Load a sample scenario"
             onChange={e => loadScenario(Number(e.target.value))}
-            className="bg-bone border border-rule rounded px-3 py-1.5 text-sm font-mono focus:outline-none"
+            className="bg-bone border border-rule rounded px-3 py-1.5 text-sm font-mono"
           >
             <option value="0">Load Sample Scenario...</option>
             <option value="1">1. Clean Approval (Pneumonia)</option>
@@ -323,23 +323,23 @@ export function NewClaim() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="claim-patient-id" className="block text-xs font-mono uppercase text-ink-soft mb-1">Patient ID</label>
-                <input id="claim-patient-id" required readOnly={isPatient} value={patientId} onChange={e => setPatientId(e.target.value)} placeholder="PAT-1001" className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm" />
+                <input id="claim-patient-id" required readOnly={isPatient} value={patientId} onChange={e => setPatientId(e.target.value)} placeholder="PAT-1001" className="field" />
               </div>
               <div>
                 <label htmlFor="claim-policy-number" className="block text-xs font-mono uppercase text-ink-soft mb-1">Policy Number</label>
-                <input id="claim-policy-number" required value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} placeholder="STAR-402-GOLD" className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm" />
+                <input id="claim-policy-number" required value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} placeholder="STAR-402-GOLD" className="field" />
               </div>
             </div>
             <div>
               <label htmlFor="claim-diagnosis" className="block text-xs font-mono uppercase text-ink-soft mb-1">Diagnosis Code</label>
-              <input id="claim-diagnosis" required list="icd10-codes" autoComplete="off" value={diagnosis} onChange={e => setDiagnosis(e.target.value)} placeholder="ICD-10, e.g. K35.80" aria-describedby="claim-diagnosis-hint" className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm" />
+              <input id="claim-diagnosis" required list="icd10-codes" autoComplete="off" value={diagnosis} onChange={e => setDiagnosis(e.target.value)} placeholder="ICD-10, e.g. K35.80" aria-describedby="claim-diagnosis-hint" className="field" />
               <datalist id="icd10-codes">
                 {Object.entries(ICD10_CODES).map(([code, name]) => (
                   <option key={code} value={code}>{name}</option>
                 ))}
               </datalist>
               {/* Advice only: the list is short, and a scanned bill may carry a code written another way. */}
-              <p id="claim-diagnosis-hint" className={`text-xs mt-1 min-h-4 ${diagnosis.trim() && !looksLikeIcd10(diagnosis) ? 'text-amber' : 'text-ink-soft'}`}>
+              <p id="claim-diagnosis-hint" className={`text-xs mt-1 min-h-4 ${diagnosis.trim() && !looksLikeIcd10(diagnosis) ? 'text-amber-ink' : 'text-ink-soft'}`}>
                 {describeIcd10(diagnosis) ?? (diagnosis.trim() && !looksLikeIcd10(diagnosis) ? 'This does not look like an ICD-10 code (for example K35.80). It will be saved as typed.' : '')}
               </p>
             </div>
@@ -352,7 +352,7 @@ export function NewClaim() {
                 <span className="font-mono text-xs uppercase tracking-wider text-pine-deep font-bold flex items-center gap-1.5">
                   <Upload size={14} /> Scan Bill Document (PDF or Photo)
                 </span>
-                <p className="text-[11px] text-ink-soft font-mono mt-0.5">
+                <p className="text-xs text-ink-soft font-mono mt-0.5">
                   {scanned ? (
                     <>
                       {scanned.name} will be kept with this {isPatient ? 'bill' : 'claim'} as the original document.{' '}
@@ -381,7 +381,7 @@ export function NewClaim() {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={extracting}
-                className="bg-bone hover:bg-rule/40 border border-rule text-pine-deep px-3 py-1.5 rounded text-xs font-mono transition-colors cursor-pointer flex items-center gap-1.5"
+                className="btn btn-sm btn-secondary"
               >
                 <Upload size={13} /> {extracting ? 'Extracting…' : 'Upload Document'}
               </button>
@@ -433,7 +433,7 @@ export function NewClaim() {
           <button
             type="submit"
             disabled={submitting || items.length === 0}
-            className="w-full bg-pine hover:bg-pine-deep text-bone rounded px-4 py-3 font-medium transition-colors disabled:opacity-50 text-lg shadow-md"
+            className="btn btn-primary w-full py-2.5"
           >
             {submitting ? 'Submitting...' : isPatient ? 'Save and Check Bill' : 'Submit Claim'}
           </button>
@@ -442,7 +442,7 @@ export function NewClaim() {
             type="button"
             onClick={runEstimate}
             disabled={estimating || items.length === 0}
-            className="w-full bg-paper hover:bg-bone border border-rule text-pine-deep rounded px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
+            className="btn btn-secondary w-full py-2.5"
           >
             {estimating ? 'Estimating...' : 'Estimate Payout First'}
           </button>
@@ -461,7 +461,7 @@ export function NewClaim() {
                 </div>
               </div>
               {estimate.excluded_lines.length > 0 && (
-                <ul className="mt-3 space-y-1 text-xs text-amber">
+                <ul className="mt-3 space-y-1 text-xs text-amber-ink">
                   {estimate.excluded_lines.map(l => (
                     <li key={l.line}>Line {l.line}, {l.item_name}: {l.reason}</li>
                   ))}

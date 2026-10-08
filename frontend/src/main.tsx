@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import { Toaster } from 'sonner'
+import { MotionConfig } from 'motion/react'
 import '@fontsource/instrument-serif'
 import '@fontsource/geist-sans'
 import '@fontsource/geist-mono'
@@ -11,7 +12,10 @@ import App from './App.tsx'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      {/* Animations follow the system's reduced-motion setting. */}
+      <MotionConfig reducedMotion="user">
+        <App />
+      </MotionConfig>
       <Toaster position="bottom-right" />
     </BrowserRouter>
   </StrictMode>,

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
-import { Building2, User, ArrowLeft, Mail, KeyRound, CheckCircle2 } from 'lucide-react';
+import { Building2, User, ArrowLeft, Mail, KeyRound, CheckCircle2, Info, MessageSquare, ShieldCheck, Timer, Zap } from 'lucide-react';
 
 type AuthMode = 'login' | 'register' | 'forgot_password';
 type PortalRole = 'HOSPITAL' | 'PATIENT';
@@ -101,7 +101,7 @@ export function Login() {
                   AI
                 </span>
               </h1>
-              <span className="text-[11px] font-mono uppercase bg-pine/10 text-pine-deep font-bold px-2.5 py-1 rounded-full border border-pine/20">
+              <span className="text-xs font-mono uppercase bg-pine/10 text-pine-deep font-bold px-2.5 py-1 rounded-full border border-pine/20">
                 Judge / Demo Guide
               </span>
             </div>
@@ -113,17 +113,17 @@ export function Login() {
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <div className="bg-bone border border-rule rounded p-2.5">
                 <div className="font-bold text-pine-deep flex items-center gap-1">
-                  <span>⏱</span> 10-Second Discharge
+                  <Timer size={14} /> 10-Second Discharge
                 </div>
-                <div className="text-ink-soft text-[11px] mt-0.5">
+                <div className="text-ink-soft text-xs mt-0.5">
                   Eliminates 4–6 hour manual discharge approval delays for patients.
                 </div>
               </div>
               <div className="bg-bone border border-rule rounded p-2.5">
                 <div className="font-bold text-vermilion flex items-center gap-1">
-                  <span>🛡</span> Stops Overcharging
+                  <ShieldCheck size={14} /> Stops Overcharging
                 </div>
-                <div className="text-ink-soft text-[11px] mt-0.5">
+                <div className="text-ink-soft text-xs mt-0.5">
                   Audits line items against rate cards; flags markups, unbundling & duplicates.
                 </div>
               </div>
@@ -134,9 +134,9 @@ export function Login() {
           <div className="bg-bone border-2 border-pine/30 rounded-lg p-4 space-y-3 shadow-xs">
             <div className="flex justify-between items-center">
               <span className="text-xs font-mono uppercase font-bold text-pine-deep flex items-center gap-1.5">
-                <span>⚡</span> Evaluator 1-Click Credentials
+                <Zap size={14} /> Evaluator 1-Click Credentials
               </span>
-              <span className="text-[10px] font-mono text-ink-soft bg-paper px-2 py-0.5 rounded border border-rule">
+              <span className="text-xs font-mono text-ink-soft bg-paper px-2 py-0.5 rounded border border-rule">
                 Click to Auto-Fill
               </span>
             </div>
@@ -155,10 +155,10 @@ export function Login() {
                 <div className="flex items-center gap-1.5 text-xs font-bold text-pine-deep group-hover:text-pine">
                   <Building2 size={14} /> Hospital Staff
                 </div>
-                <div className="text-[10px] text-ink-soft font-mono mt-1 truncate">
+                <div className="text-xs text-ink-soft font-mono mt-1 truncate">
                   doctor.demo@careclaim.org
                 </div>
-                <div className="text-[10px] text-ink-soft mt-0.5 leading-tight">
+                <div className="text-xs text-ink-soft mt-0.5 leading-tight">
                   Intake, rate audit & AI run
                 </div>
               </button>
@@ -176,18 +176,18 @@ export function Login() {
                 <div className="flex items-center gap-1.5 text-xs font-bold text-pine-deep group-hover:text-pine">
                   <User size={14} /> Patient Account
                 </div>
-                <div className="text-[10px] text-ink-soft font-mono mt-1 truncate">
+                <div className="text-xs text-ink-soft font-mono mt-1 truncate">
                   patient.demo@careclaim.org
                 </div>
-                <div className="text-[10px] text-ink-soft mt-0.5 leading-tight">
+                <div className="text-xs text-ink-soft mt-0.5 leading-tight">
                   Bill audit, copay & disputes
                 </div>
               </button>
             </div>
 
-            <div className="text-[11px] text-ink-soft flex items-center justify-between pt-1 border-t border-rule/60">
+            <div className="text-xs text-ink-soft flex flex-wrap items-center justify-between gap-x-3 gap-y-1 pt-1 border-t border-rule/60">
               <span>Password: <code className="bg-paper px-1.5 py-0.2 rounded font-mono font-bold text-pine-deep">CareClaim2026!</code></span>
-              <span className="text-[10px] text-ink-soft">New DB? Use <strong>Register</strong> to create in 1 sec</span>
+              <span className="text-xs text-ink-soft">New DB? Use <strong>Register</strong> to create in 1 sec</span>
             </div>
           </div>
 
@@ -227,7 +227,7 @@ export function Login() {
                       setAuthMode('login');
                       setResetSent(false);
                     }}
-                    className="w-full mt-2 bg-pine hover:bg-pine-deep text-bone py-2 rounded text-xs font-mono uppercase tracking-wider font-semibold transition-colors"
+                    className="btn btn-primary w-full mt-2"
                   >
                     Return to Sign In
                   </button>
@@ -246,7 +246,7 @@ export function Login() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="yourname@hospital.org"
-                        className="w-full bg-bone border border-rule rounded px-3 py-2 pl-9 text-sm focus:outline-none focus:border-pine focus:ring-1 focus:ring-pine transition-all"
+                        className="w-full bg-bone border border-rule rounded px-3 py-2 pl-9 text-sm"
                         required
                       />
                     </div>
@@ -255,7 +255,7 @@ export function Login() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-pine hover:bg-pine-deep text-bone rounded py-2.5 text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+                    className="btn btn-primary w-full py-2.5"
                   >
                     {loading ? 'Sending link...' : 'Send Password Reset Link'}
                   </button>
@@ -268,7 +268,7 @@ export function Login() {
               {/* Shown when registering only: an existing account already has its role. */}
               {registering && (
               <div className="space-y-2">
-                <div className="block text-[11px] font-mono uppercase tracking-wider text-ink-soft font-semibold">
+                <div className="block text-xs font-mono uppercase tracking-wider text-ink-soft font-semibold">
                   Registering As
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -288,7 +288,7 @@ export function Login() {
                         Hospital
                       </span>
                     </div>
-                    <p className="text-[11px] text-ink-soft line-clamp-2">
+                    <p className="text-xs text-ink-soft line-clamp-2">
                       Staff, billing teams & adjudication
                     </p>
                   </button>
@@ -309,12 +309,12 @@ export function Login() {
                         Patient
                       </span>
                     </div>
-                    <p className="text-[11px] text-ink-soft line-clamp-2">
+                    <p className="text-xs text-ink-soft line-clamp-2">
                       Review your bills & dispute flags
                     </p>
                   </button>
                 </div>
-                <p className="text-[11px] text-ink-soft">You confirm this on the next screen, where the account type becomes permanent.</p>
+                <p className="text-xs text-ink-soft">You confirm this on the next screen, where the account type becomes permanent.</p>
               </div>
               )}
 
@@ -346,11 +346,11 @@ export function Login() {
 
               {/* Step-by-Step Instructions Banner */}
               <div className="bg-pine/5 border border-pine/20 rounded-md p-3 text-xs text-pine-deep space-y-1">
-                <div className="flex items-center gap-2 font-mono font-bold text-[11px] uppercase tracking-wider text-pine">
-                  <span className="bg-pine text-bone px-1.5 py-0.5 rounded text-[10px]">Step 1 of 3</span>
+                <div className="flex items-center gap-2 font-mono font-bold text-xs uppercase tracking-wider text-pine">
+                  <span className="bg-pine text-bone px-1.5 py-0.5 rounded text-xs">Step 1 of 3</span>
                   {authMode === 'login' ? 'Authentication' : 'Account Setup'}
                 </div>
-                <p className="text-[11px] text-ink-soft leading-relaxed">
+                <p className="text-xs text-ink-soft leading-relaxed">
                   {authMode === 'login'
                     ? 'Sign in to access your claims queue. For quickest judge testing, use the 1-Click Credentials buttons at the top.'
                     : 'Create your credentials here. On Step 2, you will pick your hospital organization or enter your insurance card details.'}
@@ -370,7 +370,7 @@ export function Login() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={registering && portalRole === 'PATIENT' ? 'patient@gmail.com' : 'doctor@hospital.org'}
-                    className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm focus:outline-none focus:border-pine focus:ring-1 focus:ring-pine transition-all"
+                    className="field"
                     required
                   />
                 </div>
@@ -400,27 +400,27 @@ export function Login() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm focus:outline-none focus:border-pine focus:ring-1 focus:ring-pine transition-all"
+                    className="field"
                     required
                   />
                 </div>
 
                 {authMode === 'register' && portalRole === 'PATIENT' && (
-                  <p className="text-[11px] text-ink-soft bg-bone p-2.5 rounded border border-rule">
-                    ℹ Next Step: Link your Policy Number (e.g. <code>STAR-402-GOLD</code>) and Patient ID (<code>PAT-1001</code>) to review itemized bills.
+                  <p className="text-xs text-ink-soft bg-bone p-2.5 rounded border border-rule">
+                    <Info size={13} className="inline -mt-0.5 mr-1" />Next Step: Link your Policy Number (e.g. <code>STAR-402-GOLD</code>) and Patient ID (<code>PAT-1001</code>) to review itemized bills.
                   </p>
                 )}
 
                 {authMode === 'register' && portalRole === 'HOSPITAL' && (
-                  <p className="text-[11px] text-ink-soft bg-bone p-2.5 rounded border border-rule">
-                    ℹ Next Step: Select your hospital network (e.g. Apollo Hospitals) and enter verification code <code>CARECLAIM-HOSPITAL-2026</code>.
+                  <p className="text-xs text-ink-soft bg-bone p-2.5 rounded border border-rule">
+                    <Info size={13} className="inline -mt-0.5 mr-1" />Next Step: Select your hospital network (e.g. Apollo Hospitals) and enter verification code <code>CARECLAIM-HOSPITAL-2026</code>.
                   </p>
                 )}
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-pine hover:bg-pine-deep text-bone rounded py-2.5 text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer shadow-sm mt-2 font-mono uppercase tracking-wider"
+                  className="btn btn-primary w-full py-2.5 mt-2"
                 >
                   {loading ? 'Processing...' : registering ? 'Create Account & Continue' : 'Sign In to Dashboard'}
                 </button>
@@ -438,7 +438,7 @@ export function Login() {
         <div className="w-full max-w-md space-y-6 z-10 text-bone">
           {/* Pitch Banner */}
           <div className="space-y-2">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-phosphor bg-pine px-2 py-0.5 rounded">
+            <span className="text-[11px] font-mono uppercase tracking-widest text-phosphor bg-pine px-2 py-0.5 rounded">
               Project Architecture & Impact
             </span>
             <h2 className="text-2xl font-serif leading-tight">
@@ -453,27 +453,27 @@ export function Login() {
           <div className="space-y-2.5 text-xs">
             <div className="bg-pine/40 border border-bone/10 p-3 rounded-lg space-y-1">
               <div className="font-bold text-phosphor flex items-center gap-1.5">
-                <span>⏱</span> 10s Autonomous Turnaround
+                <Timer size={14} /> 10s Autonomous Turnaround
               </div>
-              <p className="text-[11px] text-bone/80">
-                Replaces 4–6 hours of stressful discharge queue waiting with sub-10s Gemini 2.5 multimodal bill processing and deterministic math checks.
+              <p className="text-xs text-bone/80">
+                Replaces 4–6 hours of stressful discharge queue waiting with sub-10s Gemini multimodal bill processing and deterministic math checks.
               </p>
             </div>
 
             <div className="bg-pine/40 border border-bone/10 p-3 rounded-lg space-y-1">
               <div className="font-bold text-phosphor flex items-center gap-1.5">
-                <span>🛡</span> Overcharge & Duplicate Guard
+                <ShieldCheck size={14} /> Overcharge & Duplicate Guard
               </div>
-              <p className="text-[11px] text-bone/80">
+              <p className="text-xs text-bone/80">
                 Audits raw bill entries against standard rate cards; flags duplicate surgical supplies, inflated room rents, and cosmetic procedures.
               </p>
             </div>
 
             <div className="bg-pine/40 border border-bone/10 p-3 rounded-lg space-y-1">
               <div className="font-bold text-phosphor flex items-center gap-1.5">
-                <span>💬</span> Patient-Hospital Dispute Desk
+                <MessageSquare size={14} /> Patient-Hospital Dispute Desk
               </div>
-              <p className="text-[11px] text-bone/80">
+              <p className="text-xs text-bone/80">
                 Patients question suspicious charges with 1 click; hospital billing staff review and resolve queries in a shared team queue.
               </p>
             </div>
@@ -486,10 +486,10 @@ export function Login() {
             className="bg-paper text-ink rounded-lg p-4 shadow-xl border-t-4 border-pine relative space-y-3"
           >
             <div className="flex justify-between items-center border-b border-rule pb-2">
-              <span className="text-[10px] font-mono text-ink-soft uppercase tracking-widest">
+              <span className="text-[11px] font-mono text-ink-soft uppercase tracking-widest">
                 Real-Time Adjudication
               </span>
-              <span className="text-[10px] font-mono bg-moss/10 text-moss px-2 py-0.5 rounded font-bold uppercase">
+              <span className="text-[11px] font-mono bg-moss/10 text-moss px-2 py-0.5 rounded font-bold uppercase">
                 Audit Verified
               </span>
             </div>
@@ -511,8 +511,8 @@ export function Login() {
           </motion.div>
 
           {/* Evaluator Flow */}
-          <div className="p-3 bg-bone/10 rounded-lg text-[11px] space-y-1 font-mono text-bone/80">
-            <div className="text-phosphor font-bold uppercase text-[10px]">Recommended Evaluation Path:</div>
+          <div className="p-3 bg-bone/10 rounded-lg text-xs space-y-1 font-mono text-bone/80">
+            <div className="text-phosphor font-bold uppercase text-[11px]">Recommended Evaluation Path:</div>
             <div>1. Sign in as Hospital ➔ New Claim ➔ Run Agent</div>
             <div>2. Review terminal reasoning & line-item flags</div>
             <div>3. Sign in as Patient ➔ Review bill & raise dispute</div>

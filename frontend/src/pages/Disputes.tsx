@@ -3,6 +3,7 @@ import { fetchApi } from '../lib/api';
 import { useAccount } from '../lib/account';
 import type { Dispute } from '../lib/claims';
 import { DisputeCard } from '../components/DisputeCard';
+import { Loading } from '../components/Loading';
 
 const FILTERS = [
   { key: 'ALL', label: 'All' },
@@ -73,7 +74,7 @@ export function Disputes() {
             <button onClick={load} className="text-sm text-pine font-medium hover:underline">Retry</button>
           </div>
         ) : !disputes ? (
-          <div className="p-8 text-center font-mono">Loading...</div>
+          <Loading className="p-8" />
         ) : visible.length === 0 ? (
           <div className="p-8 text-center space-y-2">
             <div className="text-ink-soft font-mono text-xs uppercase tracking-widest">

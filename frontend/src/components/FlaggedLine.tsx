@@ -48,7 +48,7 @@ export function FlaggedLine({ claimId, line, canDispute, disputed, onDisputed, o
   };
 
   return (
-    <div ref={box} className={`p-3 rounded border text-sm ${suspicious ? 'bg-vermilion/10 text-vermilion border-vermilion/20' : 'bg-amber/10 text-amber border-amber/20'}`}>
+    <div ref={box} className={`p-3 rounded border text-sm ${suspicious ? 'bg-vermilion/10 text-vermilion border-vermilion/20' : 'bg-amber/10 text-amber-ink border-amber/20'}`}>
       <div className="flex justify-between gap-3 font-bold">
         <span>{line.item_name} · {flagLabel(line.flag)}</span>
         <span className={`font-mono shrink-0 ${line.waived ? 'line-through opacity-60' : ''}`}>{formatCurrency(line.cost)}</span>
@@ -66,7 +66,7 @@ export function FlaggedLine({ claimId, line, canDispute, disputed, onDisputed, o
             <button
               type="button"
               onClick={() => onOpenChange(true)}
-              className="border border-vermilion/40 bg-paper hover:bg-vermilion/10 rounded px-3 py-1.5 text-xs font-medium transition-colors"
+              className="btn btn-sm border border-vermilion/40 bg-paper hover:bg-vermilion/10"
             >
               Dispute this charge
             </button>

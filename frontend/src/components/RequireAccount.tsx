@@ -5,6 +5,7 @@ import { fetchApi } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { AccountContext } from '../lib/account';
 import type { Profile } from '../lib/account';
+import { Loading } from './Loading';
 
 /**
  * Gate for every signed-in page. The backend refuses claim routes until the
@@ -47,10 +48,10 @@ export function RequireAccount({ children }: { children: ReactNode }) {
           <div className="font-serif text-2xl text-pine-deep">Unable to load your account</div>
           <div className="text-sm text-vermilion font-mono bg-vermilion/5 border border-vermilion/20 p-3 rounded">{error}</div>
           <div className="flex justify-center gap-3 pt-2">
-            <button onClick={() => window.location.reload()} className="px-4 py-2 border border-rule text-sm rounded hover:bg-bone transition-colors font-medium">
+            <button onClick={() => window.location.reload()} className="btn btn-secondary">
               Retry
             </button>
-            <button onClick={handleSignOut} className="px-4 py-2 bg-pine hover:bg-pine-deep text-bone text-sm rounded transition-colors font-medium">
+            <button onClick={handleSignOut} className="btn btn-primary">
               Sign In Again
             </button>
           </div>
@@ -58,7 +59,7 @@ export function RequireAccount({ children }: { children: ReactNode }) {
       </div>
     );
   }
-  if (!profile) return <div className="p-10 text-center font-mono">Loading...</div>;
+  if (!profile) return <Loading />;
 
   return <AccountContext.Provider value={profile}>{children}</AccountContext.Provider>;
 }

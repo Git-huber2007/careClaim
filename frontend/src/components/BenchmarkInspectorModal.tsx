@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { AlertTriangle, CheckCircle, Info, X } from 'lucide-react';
 import { formatCurrency } from '../lib/format';
 import { findReferencePrice, flagLabel } from '../lib/claims';
@@ -26,11 +27,19 @@ export function BenchmarkInspectorModal({ item, hit, lineNumber, decided, prices
   const ratio = match ? item.cost / match.reference : 0;
   const above = ratio > OVERPRICED_RATIO;
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const finding = !decided
     ? { tone: 'bg-bone border-rule text-ink-soft', icon: <Info size={15} />, title: 'Not adjudicated yet', text: 'Run the adjudication to see what the agent decides for this charge.' }
     : hit
       ? {
-          tone: hit.flag === 'NOT_COVERED' ? 'bg-amber/10 border-amber/30 text-amber' : 'bg-vermilion/10 border-vermilion/30 text-vermilion',
+          tone: hit.flag === 'NOT_COVERED' ? 'bg-amber/10 border-amber/30 text-amber-ink' : 'bg-vermilion/10 border-vermilion/30 text-vermilion',
           icon: <AlertTriangle size={15} />,
           title: `${flagLabel(hit.flag)}${hit.waived ? ' · withdrawn by the hospital' : ''}`,
           text: hit.reason
@@ -38,12 +47,12 @@ export function BenchmarkInspectorModal({ item, hit, lineNumber, decided, prices
       : { tone: 'bg-moss/10 border-moss/30 text-moss', icon: <CheckCircle size={15} />, title: 'Passed (OK)', text: 'The agent found no problem with this charge, and the insurer pays its share of it.' };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-ink/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div role="dialog" aria-modal="true" aria-label={`Rate check for line ${lineNumber}`} className="bg-paper border border-rule w-full max-w-md rounded-xl shadow-2xl overflow-hidden flex flex-col">
         <div className="p-4 border-b border-rule flex justify-between items-center bg-bone">
           <div>
             <div className="text-xs font-mono uppercase tracking-wider text-pine-deep font-bold">Rate Inspector</div>
-            <div className="text-[11px] text-ink-soft">Line {lineNumber} · {item.item_name}</div>
+            <div className="text-xs text-ink-soft">Line {lineNumber} · {item.item_name}</div>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="text-ink-soft hover:text-ink p-1 rounded hover:bg-rule/40 transition-colors cursor-pointer">
             <X size={16} />
@@ -53,7 +62,7 @@ export function BenchmarkInspectorModal({ item, hit, lineNumber, decided, prices
         <div className="p-6 space-y-4 text-xs">
           <div className="bg-bone border border-rule rounded-lg p-4 space-y-2 font-mono">
             <div className="flex justify-between items-baseline border-b border-rule pb-2">
-              <span className="text-ink-soft uppercase text-[11px]">Hospital charge</span>
+              <span className="text-ink-soft uppercase text-xs">Hospital charge</span>
               <span className="text-lg font-bold text-ink">{formatCurrency(item.cost)}</span>
             </div>
 
@@ -66,7 +75,7 @@ export function BenchmarkInspectorModal({ item, hit, lineNumber, decided, prices
                 <div className="flex justify-between items-baseline gap-3">
                   <span className="text-ink-soft">
                     Reference: {match.name}
-                    <span className="block text-[10px]">
+                    <span className="block text-xs">
                       {formatCurrency(match.unitPrice)} {match.unit}
                       {match.multiplier > 1 ? ` × ${match.multiplier}` : ''}
                     </span>
@@ -88,10 +97,10 @@ export function BenchmarkInspectorModal({ item, hit, lineNumber, decided, prices
               {finding.icon}
               <span>{finding.title}</span>
             </div>
-            <p className="text-[11px] leading-relaxed text-ink">{finding.text}</p>
+            <p className="text-xs leading-relaxed text-ink">{finding.text}</p>
           </div>
 
-          <p className="text-[11px] text-ink-soft leading-relaxed">
+          <p className="text-xs text-ink-soft leading-relaxed">
             The agent flags a charge as overpriced when it is more than {OVERPRICED_RATIO}× the reference price. The reference prices are
             sample values for this demo, not an official rate card.
           </p>
@@ -102,7 +111,7 @@ export function BenchmarkInspectorModal({ item, hit, lineNumber, decided, prices
             <button
               type="button"
               onClick={onStartDispute}
-              className="mr-auto bg-vermilion hover:bg-vermilion/90 text-bone py-2 px-4 rounded text-xs font-mono uppercase tracking-wider font-semibold transition-colors cursor-pointer"
+              className="btn mr-auto bg-vermilion text-bone hover:bg-vermilion/90"
             >
               Dispute this charge
             </button>
@@ -110,7 +119,7 @@ export function BenchmarkInspectorModal({ item, hit, lineNumber, decided, prices
           <button
             type="button"
             onClick={onClose}
-            className="bg-paper hover:bg-bone border border-rule py-2 px-4 rounded text-xs font-mono uppercase tracking-wider text-pine-deep font-semibold transition-colors cursor-pointer"
+            className="btn btn-secondary"
           >
             Close
           </button>

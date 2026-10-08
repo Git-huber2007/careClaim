@@ -77,7 +77,7 @@ export function ResetPassword() {
                 required
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm focus:outline-none focus:border-pine focus:ring-1 focus:ring-pine transition-all"
+                className="field"
               />
             </div>
             <div>
@@ -89,13 +89,13 @@ export function ResetPassword() {
                 required
                 value={confirm}
                 onChange={e => setConfirm(e.target.value)}
-                className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm focus:outline-none focus:border-pine focus:ring-1 focus:ring-pine transition-all"
+                className="field"
               />
             </div>
             <button
               type="submit"
               disabled={saving}
-              className="w-full bg-pine hover:bg-pine-deep text-bone rounded py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
+              className="btn btn-primary w-full py-2.5"
             >
               {saving ? 'Saving...' : 'Update Password'}
             </button>

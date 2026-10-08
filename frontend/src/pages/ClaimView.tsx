@@ -12,11 +12,12 @@ import { StatusStamp } from '../components/StatusStamp';
 import { DischargeSlipModal } from '../components/DischargeSlipModal';
 import { DisputeCard } from '../components/DisputeCard';
 import { FlaggedLine } from '../components/FlaggedLine';
-import { formatCurrency } from '../lib/format';
-import { BarChart3, FileText, Printer } from 'lucide-react';
+import { formatCurrency, shortId } from '../lib/format';
+import { FileText, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { PlainSummary } from '../components/PlainSummary';
 import { BenchmarkInspectorModal } from '../components/BenchmarkInspectorModal';
+import { Loading } from '../components/Loading';
 
 /** Remounts per claim, so one claim's run never shows under another claim's URL. */
 export function ClaimView() {
@@ -31,6 +32,7 @@ function ClaimDetail({ id }: { id: string }) {
   const [loadError, setLoadError] = useState('');
   const [events, setEvents] = useState<TerminalEvent[]>([]);
   const [streaming, setStreaming] = useState(false); // this tab holds the open run stream
+  const [runFailed, setRunFailed] = useState(false); // the run this tab started ended in an error
   const [showSlip, setShowSlip] = useState(false);
   const [inspectedLine, setInspectedLine] = useState<number | null>(null);
   // The flagged line whose dispute form is open (one at a time).
@@ -99,6 +101,7 @@ function ClaimDetail({ id }: { id: string }) {
     if (!claim || (claim.status !== 'PENDING' && !stalled) || busy) return;
 
     setStreaming(true);
+    setRunFailed(false);
     setEvents([]);
 
     const token = await getAccessToken();
@@ -106,6 +109,9 @@ function ClaimDetail({ id }: { id: string }) {
     const abort = new AbortController();
     streamAbort.current = abort;
     let settled = false; // the `result` event arrived
+    // The terminal keeps the reason, so the page does not look stuck at its last line.
+    const logError = (message: string) =>
+      setEvents(prev => [...prev, { ts: Date.now() - startedAt, event: 'log', data: { message: `[ERR] ${message}` } }]);
 
     try {
       await fetchEventSource(`${API_BASE}/api/claims/${id}/process`, {
@@ -130,7 +136,9 @@ function ClaimDetail({ id }: { id: string }) {
             settled = true;
             setClaim(data);
           } else if (ev.event === 'error') {
-            toast.error(data.message);
+            setRunFailed(true);
+            logError(data.message);
+            toast.error('The adjudication run failed. The terminal shows why.');
           } else {
             setEvents(prev => [...prev, { ts: Date.now() - startedAt, event: ev.event as any, data }]);
           }
@@ -141,7 +149,11 @@ function ClaimDetail({ id }: { id: string }) {
         }
       });
     } catch (err: any) {
-      if (!abort.signal.aborted) toast.error(err?.message || 'Connection lost');
+      if (!abort.signal.aborted) {
+        const message = err?.message || 'Connection lost';
+        logError(message);
+        toast.error(message);
+      }
     } finally {
       setStreaming(false);
       // No verdict came down this stream. Ask the backend where the claim stands:
@@ -159,17 +171,17 @@ function ClaimDetail({ id }: { id: string }) {
     }));
 
   if (!claim) {
-    if (!loadError) return <div className="p-10 text-center font-mono">Loading...</div>;
+    if (!loadError) return <Loading label="Loading claim…" />;
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-6">
         <div className="w-full max-w-md bg-paper p-8 rounded-lg border border-rule text-center space-y-4 shadow-sm">
           <div className="font-serif text-2xl text-pine-deep">Unable to load this claim</div>
           <div className="text-sm text-vermilion font-mono bg-vermilion/5 border border-vermilion/20 p-3 rounded">{loadError}</div>
           <div className="flex justify-center gap-3 pt-2">
-            <Link to="/dashboard" className="px-4 py-2 border border-rule text-sm rounded hover:bg-bone transition-colors font-medium">
+            <Link to="/dashboard" className="btn btn-secondary">
               Back to dashboard
             </Link>
-            <button onClick={loadClaim} className="px-4 py-2 bg-pine hover:bg-pine-deep text-bone text-sm rounded transition-colors font-medium">
+            <button onClick={loadClaim} className="btn btn-primary">
               Retry
             </button>
           </div>
@@ -189,14 +201,14 @@ function ClaimDetail({ id }: { id: string }) {
   const canRun = (claim.status === 'PENDING' || stalled) && !busy && (!isPatient || claim.source === 'PATIENT');
   // A bill the patient entered themselves has no hospital account behind it to answer.
   const canDispute = isPatient && claim.source === 'HOSPITAL';
+  // The run ended without a verdict: it failed in this tab, or died on the server.
+  const runBroke = !decided && !busy && (runFailed || stalled);
   const payoutNote = !decided
     ? busy
       ? 'Adjudication in progress'
-      : !stalled
+      : !runBroke
         ? 'Not adjudicated yet'
-        : canRun
-          ? 'The last run stopped before it finished. Run it again.'
-          : 'The last run stopped before it finished. The hospital needs to run it again.'
+        : `The last run ${runFailed ? 'failed' : 'stopped before it finished'}. ${canRun ? 'Run it again.' : 'The hospital needs to run it again.'}`
     : isPatient ? `You pay ${formatCurrency(patientPayable(claim))}` : '';
 
   const inspected = inspectedLine ? { item: claim.raw_bill_data[inspectedLine - 1], hit: flagByLine.get(inspectedLine) } : null;
@@ -211,6 +223,7 @@ function ClaimDetail({ id }: { id: string }) {
 
   return (
     <div className="p-6 md:p-10 max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <h1 className="sr-only">Claim {shortId(claim.id)}</h1>
       {/* Left: Bill Details */}
       <div className="lg:col-span-3 space-y-6">
         <div className="bg-paper p-6 rounded-lg border border-rule">
@@ -236,11 +249,9 @@ function ClaimDetail({ id }: { id: string }) {
               </div>
             )}
             <div className="border-t border-rule pt-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-ink-soft">Itemized Bill</span>
-                <span className="text-[10px] font-mono text-pine bg-pine/10 px-1.5 py-0.5 rounded flex items-center gap-1">
-                  <BarChart3 size={11} /> Rate Inspector
-                </span>
+              <div className="mb-2">
+                <div className="text-ink-soft">Itemized Bill</div>
+                <div className="text-xs text-ink-soft">Select a line to compare it with the reference price.</div>
               </div>
               <div className="space-y-2">
                 {claim.raw_bill_data.map((item: any, i: number) => {
@@ -252,30 +263,30 @@ function ClaimDetail({ id }: { id: string }) {
                       type="button"
                       onClick={() => setInspectedLine(lineNumber)}
                       title="Compare this charge with the reference price"
-                      className={`w-full text-left font-mono text-xs p-2 rounded transition-all cursor-pointer border ${
+                      className={`group w-full text-left font-mono text-xs p-2 rounded transition-all cursor-pointer border ${
                         hit
                           ? 'bg-vermilion/10 border-vermilion/30 hover:bg-vermilion/15'
                           : 'bg-bone border-transparent hover:border-pine/30 hover:bg-rule/40'
                       }`}
                     >
-                      <div className="flex justify-between items-center">
-                        <span className="truncate pr-2 font-medium">{item.item_name}</span>
-                        <span className="font-bold">{formatCurrency(item.cost)}</span>
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="min-w-0 break-words font-medium">{item.item_name}</span>
+                        <span className="shrink-0 font-bold">{formatCurrency(item.cost)}</span>
                       </div>
-                      <div className="flex justify-between items-center mt-1">
+                      <div className="flex justify-between items-center gap-2 mt-1">
                         {hit ? (
                           <div
-                            className={`text-[10px] font-bold uppercase tracking-widest ${
-                              isSuspicious(hit.flag) ? 'text-vermilion' : 'text-amber'
+                            className={`font-bold uppercase tracking-wider ${
+                              isSuspicious(hit.flag) ? 'text-vermilion' : 'text-amber-ink'
                             }`}
                           >
                             {flagLabel(hit.flag)}{hit.waived ? ' · withdrawn' : ''}
                           </div>
                         ) : (
                           // Until there is a verdict nothing has been checked, so nothing is called OK.
-                          <div className={`text-[10px] font-semibold ${decided ? 'text-moss' : 'text-ink-soft'}`}>{decided ? 'OK' : 'Not checked yet'}</div>
+                          <div className={`font-semibold ${decided ? 'text-moss' : 'text-ink-soft'}`}>{decided ? 'OK' : 'Not checked yet'}</div>
                         )}
-                        <span className="text-[9px] text-ink-soft hover:text-pine">
+                        <span className="shrink-0 text-ink-soft group-hover:text-pine">
                           Inspect ↗
                         </span>
                       </div>
@@ -294,15 +305,15 @@ function ClaimDetail({ id }: { id: string }) {
 
       {/* Center: Agent Terminal */}
       <div className="lg:col-span-5 space-y-4">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-2">
           <h2 className="text-xl font-serif text-pine-deep">AI Adjudication Core</h2>
           {canRun && (
             <button
               onClick={runAdjudication}
               disabled={busy}
-              className="bg-phosphor hover:bg-phosphor/80 text-pine-deep font-bold font-mono text-xs uppercase tracking-widest px-4 py-2 rounded transition-colors disabled:opacity-50 flex items-center gap-2 shadow-[0_0_15px_rgba(92,255,157,0.3)]"
+              className="btn btn-run"
             >
-              {stalled ? 'Run Adjudication Again' : 'Run Autonomous Adjudication'}
+              {runBroke ? 'Run Adjudication Again' : 'Run Autonomous Adjudication'}
             </button>
           )}
         </div>
@@ -316,7 +327,7 @@ function ClaimDetail({ id }: { id: string }) {
 
       {/* Right: Summary */}
       <div className="lg:col-span-4 space-y-6">
-        <div className="bg-paper p-6 rounded-lg border border-rule h-full shadow-sm flex flex-col">
+        <div className="bg-paper p-6 rounded-lg border border-rule shadow-sm flex flex-col">
           <div className="flex justify-between items-start border-b border-rule pb-4 mb-6">
             <h2 className="font-mono text-xs uppercase tracking-widest text-ink-soft">Decision Summary</h2>
             <div className="flex items-center gap-2">
@@ -325,7 +336,7 @@ function ClaimDetail({ id }: { id: string }) {
                   type="button"
                   onClick={() => setShowSlip(true)}
                   id="export-discharge-slip"
-                  className="inline-flex items-center gap-1 rounded bg-bone hover:bg-rule/40 border border-rule px-2.5 py-1 text-xs font-mono text-pine-deep transition-colors cursor-pointer"
+                  className="btn btn-sm btn-secondary"
                 >
                   <Printer size={13} /> Discharge Slip
                 </button>
@@ -339,7 +350,12 @@ function ClaimDetail({ id }: { id: string }) {
             <div className="font-serif text-5xl text-pine-deep tracking-tight">
               {approvedDisplay(claim)}
             </div>
-            {payoutNote && <div className="text-xs text-ink-soft font-mono mt-2">{payoutNote}</div>}
+            {payoutNote && <div className={`text-xs font-mono mt-2 ${runBroke ? 'text-vermilion' : 'text-ink-soft'}`}>{payoutNote}</div>}
+            {!decided && !busy && (
+              <p className="text-sm text-ink-soft mt-6 max-w-xs mx-auto">
+                Once the claim is adjudicated, the payout breakdown, a plain-language summary and any charges that were not paid appear here.
+              </p>
+            )}
           </div>
 
           <div className="flex-1">

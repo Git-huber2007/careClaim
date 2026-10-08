@@ -12,7 +12,13 @@
   --color-term-bg: #0A0F0D;
   --color-moss: #2E7D4F;
   --color-amber: #B7791F;
+  /* Amber dark enough to read as text on the light surfaces; plain amber is for fills and borders. */
+  --color-amber-ink: #7F5210;
   --color-vermilion: #C0392B;
+  /* Text tones for the terminal's dark surface, where the light-surface ones are too dim. */
+  --color-term-dim: #8C9892;
+  --color-term-ok: #62C48A;
+  --color-term-deny: #F2796B;
 
   --font-sans: "Geist Sans", "Geist", sans-serif;
   --font-mono: "Geist Mono", monospace;
@@ -30,11 +36,54 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+@layer base {
+  /* One focus ring for every control, shown for keyboard use and in text fields. */
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-pine);
+    outline-offset: 2px;
+  }
+}
+
+/* The shared controls. A utility class on the element still wins over these. */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-sm {
+    @apply gap-1.5 px-3 py-1.5 text-xs;
+  }
+  .btn-primary {
+    @apply bg-pine text-bone hover:bg-pine-deep;
+  }
+  .btn-secondary {
+    @apply border border-rule bg-paper text-pine-deep hover:bg-bone;
+  }
+  /* Starts an adjudication run: the one phosphor control. */
+  .btn-run {
+    @apply bg-phosphor text-pine-deep font-mono text-xs font-bold uppercase tracking-widest hover:bg-phosphor/80;
+    box-shadow: 0 0 15px rgb(92 255 157 / 0.3);
+  }
+  .field {
+    @apply w-full rounded border border-rule bg-bone px-3 py-2 text-sm;
+  }
+}
+
 /* A printable overlay is portalled to <body> and marked data-print-root; while
    one is open, everything else on the page is left out of the printout. */
 @media print {
   body:has(> [data-print-root]) > :not([data-print-root]) {
     display: none;
+  }
+}
+
+/* CSS animation and transitions; the motion library is told the same in main.tsx. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

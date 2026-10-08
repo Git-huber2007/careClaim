@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { fetchApi } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
+import { Check, Zap } from 'lucide-react';
 
 const ROLES = [
   { role: 'HOSPITAL', title: 'Hospital staff', text: 'Submit discharge bills and run the adjudication agent.' },
@@ -68,7 +69,7 @@ export function AccountSetup() {
       <form onSubmit={handleSubmit} className="w-full max-w-lg bg-paper p-8 rounded-lg border border-rule space-y-6 shadow-xs">
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-mono uppercase bg-pine/10 text-pine-deep font-bold px-2 py-0.5 rounded border border-pine/20">
+            <span className="text-[11px] font-mono uppercase bg-pine/10 text-pine-deep font-bold px-2 py-0.5 rounded border border-pine/20">
               Step 2 of 3 · Role Onboarding
             </span>
             <span className="text-xs font-mono text-ink-soft">CareClaim AI</span>
@@ -94,7 +95,7 @@ export function AccountSetup() {
             >
               <div className="font-bold text-pine-deep flex items-center justify-between">
                 <span>{r.title}</span>
-                {role === r.role && <span className="text-pine text-xs">✓ Active</span>}
+                {role === r.role && <span className="text-pine text-xs flex items-center gap-1"><Check size={13} /> Active</span>}
               </div>
               <div className="text-xs text-ink-soft mt-1 leading-relaxed">{r.text}</div>
             </button>
@@ -107,9 +108,9 @@ export function AccountSetup() {
             <div className="bg-bone border border-pine/30 rounded-lg p-3 space-y-2">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-mono font-bold text-pine-deep flex items-center gap-1">
-                  <span>⚡</span> Judge Quick Fill
+                  <Zap size={13} /> Judge Quick Fill
                 </span>
-                <span className="text-[10px] text-ink-soft font-mono">1-Click Test Preset</span>
+                <span className="text-xs text-ink-soft font-mono">1-Click Test Preset</span>
               </div>
               <button
                 type="button"
@@ -121,7 +122,7 @@ export function AccountSetup() {
                 className="w-full bg-paper hover:bg-pine/5 border border-rule hover:border-pine py-1.5 px-3 rounded text-xs text-pine-deep font-medium transition-all text-left flex items-center justify-between cursor-pointer"
               >
                 <span>Apollo Hospitals + Demo Code</span>
-                <span className="font-mono text-[10px] text-pine font-bold">Fill Now →</span>
+                <span className="font-mono text-xs text-pine font-bold">Fill Now →</span>
               </button>
             </div>
 
@@ -133,7 +134,7 @@ export function AccountSetup() {
                 id="setup-hospital-org"
                 value={hospitalOrg}
                 onChange={e => setHospitalOrg(e.target.value)}
-                className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm font-sans"
+                className="field font-sans"
               >
                 <option value="Apollo Hospitals">Apollo Hospitals</option>
                 <option value="Max Healthcare">Max Healthcare</option>
@@ -157,7 +158,7 @@ export function AccountSetup() {
                   value={customOrg}
                   onChange={e => setCustomOrg(e.target.value)}
                   placeholder="e.g. Manipal Hospital, Whitefield"
-                  className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm font-sans"
+                  className="field font-sans"
                 />
               </div>
             )}
@@ -173,7 +174,7 @@ export function AccountSetup() {
                     setAccessCode('CARECLAIM-HOSPITAL-2026');
                     toast.info('Copied demo access code into field.');
                   }}
-                  className="text-[11px] font-mono text-pine-deep bg-pine/10 hover:bg-pine/20 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                  className="text-xs font-mono text-pine-deep bg-pine/10 hover:bg-pine/20 px-2 py-0.5 rounded cursor-pointer transition-colors"
                 >
                   Paste Demo: CARECLAIM-HOSPITAL-2026
                 </button>
@@ -186,7 +187,7 @@ export function AccountSetup() {
                 value={accessCode}
                 onChange={e => setAccessCode(e.target.value)}
                 placeholder="CARECLAIM-HOSPITAL-2026"
-                className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm font-mono tracking-wider"
+                className="field font-mono tracking-wider"
               />
               <p className="text-xs text-ink-soft mt-1">
                 Authorized staff code prevents unverified users from claiming hospital roles.
@@ -201,9 +202,9 @@ export function AccountSetup() {
             <div className="bg-bone border border-pine/30 rounded-lg p-3 space-y-2">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-mono font-bold text-pine-deep flex items-center gap-1">
-                  <span>⚡</span> Judge Quick Fill Presets
+                  <Zap size={13} /> Judge Quick Fill Presets
                 </span>
-                <span className="text-[10px] text-ink-soft font-mono">Pre-Seeded Policies</span>
+                <span className="text-xs text-ink-soft font-mono">Pre-Seeded Policies</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -216,7 +217,7 @@ export function AccountSetup() {
                   className="bg-paper hover:bg-pine/5 border border-rule hover:border-pine p-2 rounded text-left transition-all cursor-pointer"
                 >
                   <div className="font-mono font-bold text-pine-deep text-xs">STAR-402-GOLD</div>
-                  <div className="text-[10px] text-ink-soft mt-0.5">PAT-1001 · Appendectomy</div>
+                  <div className="text-xs text-ink-soft mt-0.5">PAT-1001 · Appendectomy</div>
                 </button>
 
                 <button
@@ -229,7 +230,7 @@ export function AccountSetup() {
                   className="bg-paper hover:bg-pine/5 border border-rule hover:border-pine p-2 rounded text-left transition-all cursor-pointer"
                 >
                   <div className="font-mono font-bold text-pine-deep text-xs">HDFC-118-SILVER</div>
-                  <div className="text-[10px] text-ink-soft mt-0.5">PAT-1002 · Pneumonia</div>
+                  <div className="text-xs text-ink-soft mt-0.5">PAT-1002 · Pneumonia</div>
                 </button>
               </div>
             </div>
@@ -237,11 +238,11 @@ export function AccountSetup() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="setup-policy-number" className="block text-xs font-mono uppercase text-ink-soft mb-1 font-semibold">Policy Number</label>
-                <input id="setup-policy-number" required value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} placeholder="STAR-402-GOLD" className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm font-mono" />
+                <input id="setup-policy-number" required value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} placeholder="STAR-402-GOLD" className="field font-mono" />
               </div>
               <div>
                 <label htmlFor="setup-patient-id" className="block text-xs font-mono uppercase text-ink-soft mb-1 font-semibold">Patient ID</label>
-                <input id="setup-patient-id" required value={patientId} onChange={e => setPatientId(e.target.value)} placeholder="PAT-1001" className="w-full bg-bone border border-rule rounded px-3 py-2 text-sm font-mono" />
+                <input id="setup-patient-id" required value={patientId} onChange={e => setPatientId(e.target.value)} placeholder="PAT-1001" className="field font-mono" />
               </div>
             </div>
             <p className="text-xs text-ink-soft">
@@ -254,7 +255,7 @@ export function AccountSetup() {
           <button type="button" onClick={() => supabase.auth.signOut().then(() => navigate('/login', { replace: true }))} className="text-sm text-ink-soft hover:underline cursor-pointer">
             Sign out
           </button>
-          <button type="submit" disabled={!role || submitting} className="bg-pine hover:bg-pine-deep text-bone rounded px-5 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer font-mono uppercase tracking-wider">
+          <button type="submit" disabled={!role || submitting} className="btn btn-primary">
             {submitting ? 'Saving Role...' : 'Complete Setup & Enter →'}
           </button>
         </div>

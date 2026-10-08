@@ -18,26 +18,38 @@ export function AgentTerminal({ events, isProcessing }: { events: TerminalEvent[
     }
   }, [events.length]);
 
+  const lines = events.filter(e => e.event === 'log');
+  // Nothing has run yet: a short box with a hint, not a tall empty one.
+  const idle = lines.length === 0 && !isProcessing;
+
   return (
-    <div className="bg-term-bg rounded-lg border border-pine-deep/50 overflow-hidden flex flex-col h-[500px]">
+    <div
+      className={cn(
+        "bg-term-bg rounded-lg border border-pine-deep/50 overflow-hidden flex flex-col",
+        idle ? "h-44" : "h-[clamp(20rem,calc(100dvh-13rem),40rem)]"
+      )}
+    >
       {/* Terminal Header */}
-      <div className="h-8 border-b border-pine-deep/30 flex items-center px-4 justify-between bg-ink">
-        <div className="flex gap-2">
+      <div className="h-8 shrink-0 border-b border-pine-deep/30 flex items-center px-4 justify-between bg-ink">
+        <div className="flex gap-2" aria-hidden>
           <div className="w-2.5 h-2.5 rounded-full bg-ink-soft/50" />
           <div className="w-2.5 h-2.5 rounded-full bg-ink-soft/50" />
           <div className="w-2.5 h-2.5 rounded-full bg-ink-soft/50" />
         </div>
-        <div className="text-[10px] font-mono text-ink-soft uppercase tracking-wider">
+        <div className="text-[11px] font-mono text-term-dim uppercase tracking-wider">
           AGENT_TERMINAL // CareClaim OS
         </div>
       </div>
 
       {/* Terminal Body */}
-      <div 
+      <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto term-scrollbar p-4 font-mono text-[13px] leading-relaxed"
+        role="log"
+        aria-label="Adjudication log"
+        className="flex-1 min-h-0 overflow-y-auto term-scrollbar p-4 font-mono text-[13px] leading-relaxed"
       >
-        {events.filter(e => e.event === 'log').map((evt, idx) => (
+        {idle && <div className="text-term-dim">No run yet. The agent's reasoning appears here, line by line.</div>}
+        {lines.map((evt, idx) => (
           <TerminalLine key={idx} line={evt.data?.message || ''} ts={evt.ts} index={idx} />
         ))}
         {isProcessing && (
@@ -60,29 +72,32 @@ function TerminalLine({ line, ts, index }: { line: string, ts?: number, index: n
   const prefix = ts === undefined ? `[${(index + 1).toString().padStart(3, '0')}]` : formatTs(ts);
 
   // The backend's lines are "[SYS] …", "[VERIFIER] …" and the agent's own
-  // free text; one tone per line, most severe first.
+  // free text, and the page adds "[ERR] …" when a run fails; one tone per
+  // line, most severe first.
+  const isError = line.startsWith('[ERR]');
   const isVerifier = line.startsWith('[VERIFIER]');
-  const isWarning = /⚠|WARNING|OVERRIDE/.test(line);
-  const isDenial = !isWarning && !isVerifier && /✗|NOT_COVERED|not covered|DUPLICATE|OVERPRICED|UNBUNDLED|UNRELATED|\b(flagging|denied|denying|rejecting|excluded|mismatch)\b/i.test(line);
-  const isOk = !isWarning && !isDenial && (line.includes('✓') || (!isVerifier && /\b(covered|approved)\b/i.test(line)));
-  const isMath = !isWarning && !isDenial && !isOk && (line.includes('Σ') || isVerifier);
+  const isWarning = !isError && /⚠|WARNING|OVERRIDE/.test(line);
+  const isDenial = !isError && !isWarning && !isVerifier && /✗|NOT_COVERED|not covered|DUPLICATE|OVERPRICED|UNBUNDLED|UNRELATED|\b(flagging|denied|denying|rejecting|excluded|mismatch)\b/i.test(line);
+  const isOk = !isError && !isWarning && !isDenial && (line.includes('✓') || (!isVerifier && /\b(covered|approved)\b/i.test(line)));
+  const isMath = !isError && !isWarning && !isDenial && !isOk && (line.includes('Σ') || isVerifier);
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
       className={cn(
         "py-0.5 hover:bg-pine-deep/40 transition-colors flex gap-3",
+        isError && "text-term-deny font-bold",
         isWarning && "text-amber",
-        isDenial && "text-vermilion",
-        isOk && "text-moss",
+        isDenial && "text-term-deny",
+        isOk && "text-term-ok",
         isMath && "text-phosphor font-bold",
-        !isWarning && !isDenial && !isOk && !isMath && "text-bone/80"
+        !isError && !isWarning && !isDenial && !isOk && !isMath && "text-bone/80"
       )}
     >
-      <span className="text-ink-soft shrink-0">{prefix}</span>
-      <span className="break-words">{line}</span>
+      <span className="text-term-dim shrink-0">{prefix}</span>
+      <span className="min-w-0 break-words">{line}</span>
     </motion.div>
   );
 }

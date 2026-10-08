@@ -9,7 +9,7 @@ import { NoteForm } from './NoteForm';
 import { toast } from 'sonner';
 
 const STATUS = {
-  OPEN: { label: 'Awaiting hospital', cls: 'border-amber text-amber' },
+  OPEN: { label: 'Awaiting hospital', cls: 'border-amber text-amber-ink' },
   ACCEPTED: { label: 'Hospital agreed', cls: 'border-moss text-moss' },
   REJECTED: { label: 'Hospital stands by charge', cls: 'border-ink-soft/40 text-ink-soft' }
 };
@@ -63,7 +63,7 @@ export function DisputeCard({ dispute, onChanged, showClaim = false }: DisputeCa
             <span className="font-mono text-xs text-ink-soft mr-2">Line {dispute.line_number}</span>
             {dispute.item_name}
             {dispute.flag && dispute.flag !== 'OK' && (
-              <span className="ml-2 text-[10px] font-mono font-bold uppercase tracking-widest text-vermilion">{flagLabel(dispute.flag)}</span>
+              <span className="ml-2 text-[11px] font-mono font-bold uppercase tracking-widest text-vermilion">{flagLabel(dispute.flag)}</span>
             )}
           </div>
           <div className="font-mono text-xs text-ink-soft mt-0.5">
@@ -79,7 +79,7 @@ export function DisputeCard({ dispute, onChanged, showClaim = false }: DisputeCa
             )}
           </div>
         </div>
-        <span className={`shrink-0 border px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-widest ${status.cls}`}>
+        <span className={`shrink-0 border px-2 py-0.5 text-[11px] font-mono font-bold uppercase tracking-widest ${status.cls}`}>
           {status.label}
         </span>
       </div>

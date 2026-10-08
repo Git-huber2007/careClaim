@@ -24,14 +24,14 @@ export function NoteForm({ value, onChange, ariaLabel, placeholder, busy, second
         onChange={e => onChange(e.target.value)}
         aria-label={ariaLabel}
         placeholder={placeholder}
-        className="w-full bg-paper border border-rule rounded px-3 py-2 text-sm text-ink resize-y focus:outline-none focus:border-pine"
+        className="w-full bg-paper border border-rule rounded px-3 py-2 text-sm text-ink resize-y"
       />
       <div className="flex flex-wrap justify-end gap-2">
         <button
           type="button"
           onClick={secondary.onClick}
           disabled={busy}
-          className="border border-rule bg-paper hover:bg-rule/40 text-pine-deep rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+          className="btn btn-sm btn-secondary"
         >
           {secondary.label}
         </button>
@@ -39,7 +39,7 @@ export function NoteForm({ value, onChange, ariaLabel, placeholder, busy, second
           type="button"
           onClick={primary.onClick}
           disabled={busy}
-          className="bg-pine hover:bg-pine-deep text-bone rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+          className="btn btn-sm btn-primary"
         >
           {primary.label}
         </button>
