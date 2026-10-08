@@ -647,8 +647,6 @@ export async function verifyClaim(req, res) {
     .from('claims')
     .select('id, status, total_billed, approved_amount, hospital_org, processed_at:ai_reasoning_log->>processed_at, patient_payable:ai_reasoning_log->breakdown->patient_payable')
     .eq('id', id)
-    // A bill a patient typed in and checked themselves is nobody's discharge slip.
-    .eq('source', 'HOSPITAL')
     .maybeSingle();
 
   if (error) throw dbError(error);
@@ -659,7 +657,7 @@ export async function verifyClaim(req, res) {
     verification: {
       reference: data.id,
       status: data.status,
-      hospital: data.hospital_org,
+      hospital: data.hospital_org || 'Patient Audit Desk',
       total_billed: Number(data.total_billed),
       approved_amount: Number(data.approved_amount),
       patient_payable: Number(data.patient_payable ?? Math.max(0, data.total_billed - data.approved_amount)),

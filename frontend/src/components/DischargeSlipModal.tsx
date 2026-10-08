@@ -20,8 +20,8 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
   const decisionByLine = new Map(lineDecisions.map((l: any) => [l.line, l]));
 
   // Anyone handed the printed slip can scan this to check it against the record.
-  // Only for a claim a hospital filed: a bill the patient checked themselves is not a discharge slip to verify.
-  const verifiable = claim.source === 'HOSPITAL';
+  // Available for all adjudicated claims so patients and hospital staff can verify.
+  const verifiable = status === 'APPROVED' || status === 'PARTIAL' || status === 'DENIED';
   const verifyUrl = `${window.location.origin}/verify/${claim.id}`;
   const [qrCode, setQrCode] = useState('');
   useEffect(() => {

@@ -13,10 +13,11 @@ import { DischargeSlipModal } from '../components/DischargeSlipModal';
 import { DisputeCard } from '../components/DisputeCard';
 import { FlaggedLine } from '../components/FlaggedLine';
 import { formatCurrency, formatDate, shortId } from '../lib/format';
-import { ArrowLeft, FileText, Printer } from 'lucide-react';
+import { ArrowLeft, FileText, Printer, QrCode } from 'lucide-react';
 import { toast } from 'sonner';
 import { PlainSummary } from '../components/PlainSummary';
 import { BenchmarkInspectorModal } from '../components/BenchmarkInspectorModal';
+import { QrModal } from '../components/QrModal';
 import { Loading } from '../components/Loading';
 import { ErrorState } from '../components/ErrorState';
 import { PageTitle } from '../components/PageTitle';
@@ -36,6 +37,7 @@ function ClaimDetail({ id }: { id: string }) {
   const [streaming, setStreaming] = useState(false); // this tab holds the open run stream
   const [runFailed, setRunFailed] = useState(false); // the run this tab started ended in an error
   const [showSlip, setShowSlip] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const [inspectedLine, setInspectedLine] = useState<number | null>(null);
   // The flagged line whose dispute form is open (one at a time).
   const [disputeLine, setDisputeLine] = useState<number | null>(null);
@@ -382,14 +384,25 @@ function ClaimDetail({ id }: { id: string }) {
               <h2 className="font-sans text-xs font-semibold uppercase tracking-wider text-ink-soft">Decision summary</h2>
               <div className="flex items-center gap-2">
                 {decided && (
-                  <button
-                    type="button"
-                    onClick={() => setShowSlip(true)}
-                    id="export-discharge-slip"
-                    className="btn btn-sm btn-secondary"
-                  >
-                    <Printer size={13} /> Discharge slip
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowSlip(true)}
+                      id="export-discharge-slip"
+                      className="btn btn-sm btn-secondary inline-flex items-center gap-1"
+                    >
+                      <Printer size={13} /> Discharge slip
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowQr(true)}
+                      id="export-qr-code"
+                      className="btn btn-sm btn-secondary inline-flex items-center gap-1 text-pine-deep"
+                      title="Scan verification QR code with phone camera"
+                    >
+                      <QrCode size={13} className="text-pine" /> QR code
+                    </button>
+                  </div>
                 )}
                 <StatusStamp status={busy ? 'PROCESSING' : stalled ? 'PENDING' : claim.status} />
               </div>
@@ -458,6 +471,7 @@ function ClaimDetail({ id }: { id: string }) {
       </div>
 
       {showSlip && <DischargeSlipModal claim={claim} onClose={() => setShowSlip(false)} />}
+      {showQr && <QrModal claim={claim} onClose={() => setShowQr(false)} onOpenSlip={() => setShowSlip(true)} />}
       {inspected && inspectedLine && (
         <BenchmarkInspectorModal
           item={inspected.item}
