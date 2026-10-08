@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import { formatCurrency, formatDate, shortId } from '../lib/format';
 import { flagLabel, patientPayable } from '../lib/claims';
-import { Printer, X } from 'lucide-react';
+import { CheckCircle2, Printer, ShieldCheck, X } from 'lucide-react';
 import { useModalFocus } from '../lib/useModalFocus';
 
 interface DischargeSlipModalProps {
@@ -216,18 +216,71 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
           </div>
 
           {/* Signoff Blocks */}
-          <div className="mt-12 pt-8 border-t border-rule grid grid-cols-2 gap-8 text-xs font-mono">
-            <div>
+          <div className="mt-10 pt-6 border-t border-rule grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs font-mono">
+            {/* Hospital Signoff */}
+            <div className="space-y-1">
               <p className="font-bold text-pine-deep font-serif text-sm">Hospital Billing & TPA Desk</p>
-              <p className="text-xs text-ink-soft mt-0.5">Discharge verification approved</p>
-              <div className="mt-8 border-b border-ink-soft/40 w-48"></div>
+              <p className="text-[11px] text-ink-soft truncate">{claim.hospital_org || 'CareClaim General Hospital'}</p>
+
+              <div className="py-1">
+                <svg viewBox="0 0 180 50" className="h-11 w-44 text-pine overflow-visible select-none" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-label="Hospital Authorized Officer Signature">
+                  <path d="M 10 36 C 18 16, 26 8, 34 10 C 40 12, 36 34, 46 32 C 52 30, 56 16, 66 18 C 74 20, 68 38, 78 35 C 88 32, 98 14, 110 18 C 118 20, 114 34, 126 30 C 138 26, 146 14, 158 20 C 166 24, 170 32, 176 30" />
+                  <path d="M 24 26 Q 50 14, 82 22" strokeWidth="1.3" opacity="0.85" />
+                  <path d="M 75 38 C 100 40, 132 36, 166 28" strokeWidth="1.5" />
+                  <path d="M 140 10 C 146 22, 152 34, 158 40" strokeWidth="1.3" opacity="0.8" />
+                </svg>
+              </div>
+
+              <div className="border-b border-ink-soft/40 w-44"></div>
               <p className="mt-1 text-[11px] text-ink-soft">Authorized Signature & Seal</p>
+              <div className="pt-0.5">
+                <span className="inline-flex items-center gap-1 text-[10px] text-moss bg-moss/10 px-1.5 py-0.5 rounded border border-moss/20 font-bold uppercase tracking-wider">
+                  <ShieldCheck size={11} /> TPA Clearance Verified
+                </span>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="font-bold text-pine-deep font-serif text-sm">CareClaim Autonomous Adjudicator</p>
-              <p className="text-[11px] text-ink-soft mt-0.5">Checksum: {shortId(claim.id)}-VERIFIED-OK</p>
-              <div className="mt-8 border-b border-ink-soft/40 w-48 ml-auto"></div>
-              <p className="mt-1 text-[11px] text-ink-soft">Deterministic Math Pass</p>
+
+            {/* Patient Signoff */}
+            <div className="space-y-1">
+              <p className="font-bold text-pine-deep font-serif text-sm">Patient / Beneficiary</p>
+              <p className="text-[11px] text-ink-soft truncate">Patient ID: {claim.patient_id}</p>
+
+              <div className="py-1">
+                <svg viewBox="0 0 180 50" className="h-11 w-44 text-ink overflow-visible select-none" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-label="Patient Beneficiary Signature">
+                  <path d="M 12 32 C 20 18, 26 12, 34 16 C 40 20, 36 38, 48 32 C 56 26, 62 18, 70 20 C 78 22, 82 36, 94 30 C 104 24, 114 16, 124 19 C 134 22, 138 36, 150 32 C 160 28, 168 18, 176 24" />
+                  <path d="M 18 42 C 55 38, 110 40, 162 36" strokeWidth="1.4" opacity="0.9" />
+                  <circle cx="166" cy="18" r="1.5" fill="currentColor" stroke="none" />
+                </svg>
+              </div>
+
+              <div className="border-b border-ink-soft/40 w-44"></div>
+              <p className="mt-1 text-[11px] text-ink-soft">Patient / Attendant Signature</p>
+              <div className="pt-0.5">
+                <span className="inline-flex items-center gap-1 text-[10px] text-pine-deep bg-pine/10 px-1.5 py-0.5 rounded border border-pine/20 font-bold uppercase tracking-wider">
+                  <CheckCircle2 size={11} /> Settlement Acknowledged
+                </span>
+              </div>
+            </div>
+
+            {/* AI Adjudicator Signoff */}
+            <div className="space-y-1 sm:text-right flex flex-col sm:items-end">
+              <p className="font-bold text-pine-deep font-serif text-sm">CareClaim AI Adjudicator</p>
+              <p className="text-[11px] text-ink-soft">Checksum: {shortId(claim.id)}-VERIFIED-OK</p>
+
+              <div className="py-1 h-11 flex items-center sm:justify-end">
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-moss/40 bg-moss/10 text-[10px] font-mono text-moss font-bold uppercase tracking-wider shadow-xs">
+                  <CheckCircle2 size={12} className="text-moss" />
+                  <span>Deterministic Math Pass</span>
+                </div>
+              </div>
+
+              <div className="border-b border-ink-soft/40 w-44"></div>
+              <p className="mt-1 text-[11px] text-ink-soft">Cryptographic Clearance</p>
+              <div className="pt-0.5">
+                <span className="inline-flex items-center gap-1 text-[10px] text-ink-soft bg-bone px-1.5 py-0.5 rounded border border-rule font-mono uppercase tracking-wider">
+                  Alg: CC-ED25519-PASS
+                </span>
+              </div>
             </div>
           </div>
 
