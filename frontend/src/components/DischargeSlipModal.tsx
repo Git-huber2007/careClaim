@@ -5,6 +5,7 @@ import { formatCurrency, formatDate, shortId } from '../lib/format';
 import { flagLabel, patientPayable } from '../lib/claims';
 import { CheckCircle2, Printer, ShieldCheck, X } from 'lucide-react';
 import { useModalFocus } from '../lib/useModalFocus';
+import { getDoctorForClaim, getPatientForClaim, DoctorSignatureSvg, PatientSignatureSvg } from './DynamicSignatures';
 
 interface DischargeSlipModalProps {
   claim: any;
@@ -18,6 +19,8 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
   const billItems = claim?.raw_bill_data ?? [];
   const lineDecisions = claim?.ai_reasoning_log?.line_items ?? [];
   const decisionByLine = new Map(lineDecisions.map((l: any) => [l.line, l]));
+  const doctor = getDoctorForClaim(claim);
+  const patientSigner = getPatientForClaim(claim);
 
   // Anyone handed the printed slip can scan this to check it against the record.
   // Available for all adjudicated claims so patients and hospital staff can verify.
@@ -219,23 +222,19 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
           <div className="mt-10 pt-6 border-t border-rule grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs font-mono">
             {/* Hospital Signoff */}
             <div className="space-y-1">
-              <p className="font-bold text-pine-deep font-serif text-sm">Hospital Billing & TPA Desk</p>
-              <p className="text-[11px] text-ink-soft truncate">{claim.hospital_org || 'CareClaim General Hospital'}</p>
+              <p className="font-bold text-pine-deep font-serif text-sm">Hospital Attending Consultant</p>
+              <p className="text-[11px] text-ink font-semibold truncate">{doctor.name}</p>
+              <p className="text-[10px] text-ink-soft truncate">{doctor.role} · {doctor.regNo}</p>
 
               <div className="py-1">
-                <svg viewBox="0 0 180 50" className="h-11 w-44 text-pine overflow-visible select-none" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-label="Hospital Authorized Officer Signature">
-                  <path d="M 10 36 C 18 16, 26 8, 34 10 C 40 12, 36 34, 46 32 C 52 30, 56 16, 66 18 C 74 20, 68 38, 78 35 C 88 32, 98 14, 110 18 C 118 20, 114 34, 126 30 C 138 26, 146 14, 158 20 C 166 24, 170 32, 176 30" />
-                  <path d="M 24 26 Q 50 14, 82 22" strokeWidth="1.3" opacity="0.85" />
-                  <path d="M 75 38 C 100 40, 132 36, 166 28" strokeWidth="1.5" />
-                  <path d="M 140 10 C 146 22, 152 34, 158 40" strokeWidth="1.3" opacity="0.8" />
-                </svg>
+                <DoctorSignatureSvg doctor={doctor} />
               </div>
 
               <div className="border-b border-ink-soft/40 w-44"></div>
-              <p className="mt-1 text-[11px] text-ink-soft">Authorized Signature & Seal</p>
+              <p className="mt-1 text-[11px] text-ink-soft">Attending Physician & TPA Desk</p>
               <div className="pt-0.5">
                 <span className="inline-flex items-center gap-1 text-[10px] text-moss bg-moss/10 px-1.5 py-0.5 rounded border border-moss/20 font-bold uppercase tracking-wider">
-                  <ShieldCheck size={11} /> TPA Clearance Verified
+                  <ShieldCheck size={11} /> {doctor.department.split('&')[0].trim()} Cleared
                 </span>
               </div>
             </div>
@@ -243,14 +242,11 @@ export function DischargeSlipModal({ claim, onClose }: DischargeSlipModalProps) 
             {/* Patient Signoff */}
             <div className="space-y-1">
               <p className="font-bold text-pine-deep font-serif text-sm">Patient / Beneficiary</p>
-              <p className="text-[11px] text-ink-soft truncate">Patient ID: {claim.patient_id}</p>
+              <p className="text-[11px] text-ink font-semibold truncate">{patientSigner.name}</p>
+              <p className="text-[10px] text-ink-soft truncate">{patientSigner.relation} · ID: {claim.patient_id}</p>
 
               <div className="py-1">
-                <svg viewBox="0 0 180 50" className="h-11 w-44 text-ink overflow-visible select-none" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-label="Patient Beneficiary Signature">
-                  <path d="M 12 32 C 20 18, 26 12, 34 16 C 40 20, 36 38, 48 32 C 56 26, 62 18, 70 20 C 78 22, 82 36, 94 30 C 104 24, 114 16, 124 19 C 134 22, 138 36, 150 32 C 160 28, 168 18, 176 24" />
-                  <path d="M 18 42 C 55 38, 110 40, 162 36" strokeWidth="1.4" opacity="0.9" />
-                  <circle cx="166" cy="18" r="1.5" fill="currentColor" stroke="none" />
-                </svg>
+                <PatientSignatureSvg patient={patientSigner} />
               </div>
 
               <div className="border-b border-ink-soft/40 w-44"></div>
