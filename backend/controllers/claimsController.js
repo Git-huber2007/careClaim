@@ -374,7 +374,6 @@ async function runAgent(claim, { onStage, onLog, processedBy }) {
   // 1. Autonomous reasoning by Gemini
   onStage('reasoning');
   const { result, model, attempts } = await runAdjudicationAgent(claim, policy, referencePrices ?? []);
-  if (model !== config.geminiModel) await log([`[SYS] ${config.geminiModel} has no quota left; answered by ${model}`]);
   await log(result.chain_of_thought);
 
   // 2. Deterministic verification of the flags and the payout math

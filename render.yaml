@@ -14,8 +14,6 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      - key: GEMINI_MODEL
-        value: gemini-2.5-flash
       # Your Vercel URL, e.g. https://careclaim.vercel.app (comma-separate several)
       - key: CORS_ORIGIN
         sync: false

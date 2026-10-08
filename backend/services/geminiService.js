@@ -134,44 +134,18 @@ function describeError(err) {
   }
 }
 
-const MODELS = [config.geminiModel, config.geminiFallbackModel].filter(Boolean);
-
 const isQuotaError = (err) =>
   (err?.status ?? err?.code) === 429 || /RESOURCE_EXHAUSTED|quota/i.test(err?.message || '');
 
-// A model that answered "quota exhausted" is skipped until this time. One
-// minute, because the same answer is given for a per-minute limit, which is
-// over by then; a spent daily quota costs one quick refused call a minute.
-const QUOTA_COOLDOWN_MS = 60 * 1000;
-const quotaBlockedUntil = new Map();
-
-/**
- * One model request: the configured model, and the fallback model when the
- * first has no quota left. Answers with the response and the model that gave it.
- */
+/** One request to the configured model. */
 async function generate(request) {
-  const available = MODELS.filter((m) => (quotaBlockedUntil.get(m) ?? 0) <= Date.now());
-  // True from the start when a model is being skipped for having run out a moment ago.
-  let outOfQuota = available.length < MODELS.length;
-  for (const model of available.length ? available : MODELS) {
-    try {
-      const response = await withTimeout(ai.models.generateContent({ model, ...request }), 60_000);
-      return { response, model };
-    } catch (err) {
-      if (isQuotaError(err)) {
-        outOfQuota = true;
-        quotaBlockedUntil.set(model, Date.now() + QUOTA_COOLDOWN_MS);
-        console.warn(`[gemini] ${model} has no quota left:`, describeError(err));
-      } else if (outOfQuota) {
-        // The stand-in failed for its own reasons; the cause the user can act on is still the quota.
-        console.warn(`[gemini] fallback ${model} failed:`, describeError(err));
-        break;
-      } else {
-        throw err;
-      }
-    }
+  try {
+    return await withTimeout(ai.models.generateContent({ model: config.geminiModel, ...request }), 60_000);
+  } catch (err) {
+    if (!isQuotaError(err)) throw err;
+    console.warn(`[gemini] ${config.geminiModel} has no quota left:`, describeError(err));
+    throw new HttpError(503, 'The AI service has used up its request quota for now. Please try again in a minute.');
   }
-  throw new HttpError(503, 'The AI service has used up its request quota for now. Please try again in a minute.');
 }
 
 /**
@@ -185,7 +159,7 @@ export async function runAdjudicationAgent(claim, policy, referencePrices = []) 
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const { response, model } = await generate({
+      const response = await generate({
         contents,
         config: {
           systemInstruction: SYSTEM_PROMPT,
@@ -199,11 +173,11 @@ export async function runAdjudicationAgent(claim, policy, referencePrices = []) 
       if (!text) throw new Error('Empty response from Gemini');
 
       const parsed = adjudicationResultSchema.parse(JSON.parse(text));
-      return { result: parsed, model, attempts: attempt };
+      return { result: parsed, model: config.geminiModel, attempts: attempt };
     } catch (err) {
       lastError = err;
       const status = err?.status ?? err?.code;
-      // An HttpError is already a final answer (timed out, or no model has quota left).
+      // An HttpError is already a final answer (timed out, or the model has no quota left).
       const retryable = !(err instanceof HttpError) && (!status || status >= 500 || err instanceof SyntaxError || err?.name === 'ZodError');
       console.warn(`[gemini] attempt ${attempt} failed:`, describeError(err));
       if (!retryable || attempt === 2) break;
@@ -261,7 +235,7 @@ export async function extractBillFromDocument({ fileBase64, mimeType }) {
   const cleanBase64 = fileBase64.includes(',') ? fileBase64.split(',')[1] : fileBase64;
 
   try {
-    const { response } = await generate({
+    const response = await generate({
       contents: [
         {
           role: 'user',

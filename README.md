@@ -102,7 +102,6 @@ PORT=5000
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 GEMINI_API_KEY=your_gemini_api_key
-GEMINI_MODEL=gemini-2.5-flash
 CORS_ORIGIN=http://localhost:5173
 # Optional: require this code before an account can be set up as a hospital
 # HOSPITAL_ACCESS_CODE=
@@ -153,7 +152,7 @@ To see the patient side, register a second account as a patient with `STAR-402-G
 - `POST /api/estimate` answers with the payout math for a planned bill against a policy; `GET /api/analytics` and `GET /api/reference-prices` are read-only views.
 - `POST /api/claims/:id/document` attaches the scanned bill (once; it cannot be replaced) and `GET` answers with a link to it that works for an hour. The files live in a private Supabase Storage bucket, `claim-documents`, which the backend creates on first use.
 - `GET /api/verify/:id` needs no sign-in. It confirms the status and amounts of an adjudicated, hospital-filed claim and nothing else.
-- The Gemini free tier allows a small number of requests per model per day (20 for `gemini-2.5-flash` at the time of writing). Each adjudication and each bill scan is one request. When `GEMINI_MODEL` answers that its quota is spent, the request goes to `GEMINI_FALLBACK_MODEL` (default `gemini-3.5-flash-lite`); when that fails too, the caller is told the quota is used up. `AI_DAILY_LIMIT_PER_USER` optionally caps requests per account per day.
+- The Gemini free tier allows a small number of requests per model per day (20 for `gemini-2.5-flash` at the time of writing). Each adjudication and each bill scan is one request. The model is fixed to `gemini-2.5-flash`; when its quota is spent, the caller is told the quota is used up and no other model is tried. `AI_DAILY_LIMIT_PER_USER` optionally caps requests per account per day.
 
 ---
 
