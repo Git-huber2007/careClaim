@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { PageTitle } from '../components/PageTitle';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 const MIN_PASSWORD = 6; // Supabase's default minimum
 
@@ -46,8 +47,11 @@ export function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
+    <div className="min-h-screen flex items-center justify-center p-6 bg-paper relative">
       <PageTitle>Set a new password</PageTitle>
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-8 z-20">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-md bg-paper p-8 rounded-lg border border-rule space-y-6">
         <h1 className="text-3xl font-serif text-pine-deep">Set a new password</h1>
 

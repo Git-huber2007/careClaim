@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { Check, Zap } from 'lucide-react';
 import { PageTitle } from '../components/PageTitle';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 const ROLES = [
   { role: 'HOSPITAL', title: 'Hospital staff', text: 'Submit discharge bills and run the adjudication agent.' },
@@ -68,8 +69,11 @@ export function AccountSetup() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-paper">
+    <div className="min-h-screen flex items-center justify-center p-6 bg-paper relative">
       <PageTitle>Set up your account</PageTitle>
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-8 z-20">
+        <ThemeToggle />
+      </div>
       <form onSubmit={handleSubmit} className="w-full max-w-lg bg-paper p-8 rounded-lg border border-rule space-y-6">
         <div>
           <div className="flex items-center justify-between mb-1">

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router';
-import { Menu, Moon, Sun, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { useAccount } from '../lib/account';
 import { supabase } from '../lib/supabase';
-import { setTheme, useTheme } from '../lib/theme';
+import { ThemeToggle } from './ThemeToggle';
 
 const NAV = {
   HOSPITAL: [
@@ -24,7 +24,6 @@ const NAV = {
 export function AppShell() {
   const profile = useAccount();
   const navigate = useNavigate();
-  const theme = useTheme();
   // On a phone the links and the account line sit behind a menu button.
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -41,16 +40,19 @@ export function AppShell() {
             CareClaim <span className="theme-fixed text-bone bg-pine px-1.5 py-0.5 rounded text-sm font-mono align-middle font-bold">AI</span>
           </NavLink>
 
-          <button
-            type="button"
-            onClick={() => setMenuOpen(open => !open)}
-            aria-expanded={menuOpen}
-            aria-controls="main-menu"
-            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-            className="md:hidden ml-auto p-1.5 rounded text-ink-soft hover:bg-rule/40 hover:text-ink cursor-pointer"
-          >
-            {menuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+          <div className="md:hidden ml-auto flex items-center gap-2">
+            <ThemeToggle compact />
+            <button
+              type="button"
+              onClick={() => setMenuOpen(open => !open)}
+              aria-expanded={menuOpen}
+              aria-controls="main-menu"
+              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+              className="p-1.5 rounded text-ink-soft hover:bg-rule/40 hover:text-ink cursor-pointer"
+            >
+              {menuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
 
           <div
             id="main-menu"
@@ -75,14 +77,7 @@ export function AppShell() {
                 {profile.role === 'PATIENT' ? `Patient · ${profile.patient_id}` : (profile.hospital_org ? `Hospital · ${profile.hospital_org}` : 'Hospital staff')}
               </span>
               <span className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                  aria-label={theme === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme'}
-                  className="p-1.5 rounded text-ink-soft hover:bg-rule/40 hover:text-ink cursor-pointer"
-                >
-                  {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-                </button>
+                <ThemeToggle />
                 <button onClick={signOut} className="text-sm text-ink-soft hover:underline cursor-pointer">Sign out</button>
               </span>
             </div>

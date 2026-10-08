@@ -4,6 +4,7 @@ import { PageTitle } from '../components/PageTitle';
 import { API_BASE, errorMessage } from '../lib/api';
 import { formatCurrency, formatDate, shortId } from '../lib/format';
 import { StatusStamp } from '../components/StatusStamp';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 interface Verification {
   reference: string;
@@ -37,8 +38,11 @@ export function Verify() {
   }, [id]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
+    <div className="min-h-screen flex items-center justify-center p-6 bg-paper relative">
       <PageTitle>Verify a discharge slip</PageTitle>
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-8 z-20">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-md bg-paper rounded-lg border border-rule p-8 space-y-6">
         <div className="text-center">
           <h1 className="font-serif text-2xl text-pine-deep">

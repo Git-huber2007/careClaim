@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { PageTitle } from '../components/PageTitle';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { Building2, User, ArrowLeft, Mail, KeyRound, CheckCircle2, Info, MessageSquare, ShieldCheck, Timer, Zap } from 'lucide-react';
 
 type AuthMode = 'login' | 'register' | 'forgot_password';
@@ -87,10 +88,13 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex relative">
       <PageTitle>Sign in</PageTitle>
       {/* Left Form */}
-      <div className="w-full lg:w-7/12 flex items-center justify-center p-6 md:p-10 bg-paper">
+      <div className="w-full lg:w-7/12 flex items-center justify-center p-6 md:p-10 bg-paper relative">
+        <div className="absolute top-4 right-4 sm:top-6 sm:right-8 z-20">
+          <ThemeToggle />
+        </div>
         <div className="w-full max-w-lg space-y-6">
           {/* Header & Product Mission */}
           <div>
