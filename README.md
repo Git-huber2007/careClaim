@@ -136,9 +136,13 @@ cd frontend && npm run lint && npm run typecheck && npm test     # oxlint, tsc, 
 
 Sign in with a hospital account, open **New Claim**, and pick one from **Load Sample Scenario**:
 
-1. **Clean Approval** (`HDFC-118-SILVER`, `PAT-1002`): a pneumonia admission with in-policy treatments. Outcome: `APPROVED`, 15% copay applied.
-2. **Partial (Cosmetic)** (`STAR-402-GOLD`, `PAT-1001`): an appendectomy with a cosmetic scar revision. Outcome: `PARTIAL`, the cosmetic line is not covered, 10% copay on the rest.
-3. **Fraud/Overcharge** (`STAR-402-GOLD`, `PAT-1001`): anesthesia billed twice and an overpriced X-ray. Outcome: `PARTIAL`, with the repeat flagged `DUPLICATE` and the X-ray `OVERPRICED`.
+1. **Clean Approval (Pneumonia)** (`HDFC-118-SILVER`, `PAT-1002`): a pneumonia admission with in-policy treatments. Outcome: `APPROVED`, 15% copay applied.
+2. **Partial - Cosmetic Exclusion** (`STAR-402-GOLD`, `PAT-1001`): an appendectomy with a cosmetic scar revision. Outcome: `PARTIAL`, the cosmetic line is not covered, 10% copay on the rest.
+3. **Fraud - Duplicate & Overcharge** (`STAR-402-GOLD`, `PAT-1001`): anesthesia billed twice and an overpriced X-ray. Outcome: `PARTIAL`, with the repeat flagged `DUPLICATE` and the X-ray `OVERPRICED`.
+4. **Cardiac Angioplasty (High Value)** (`CARE-777-PLATINUM`, `PAT-1003`): angioplasty, drug-eluting stent, cath lab. Outcome: `APPROVED`, 0% copay on comprehensive platinum coverage.
+5. **Maternity C-Section (Luxury Exclusion)** (`SBI-205-MATERNITY`, `PAT-1007`): LSCS cesarean and nursery care with an excluded luxury hamper. Outcome: `PARTIAL`, hamper deducted.
+6. **Oncology Chemotherapy (5% Copay)** (`MAX-990-ONCOLOGY`, `PAT-1005`): chemotherapy infusion and PET-CT with an excluded alternative herbal item. Outcome: `PARTIAL`, 5% copay.
+7. **Orthopedic Knee Replacement (Benchmark)** (`TATA-330-ORTHO`, `PAT-1006`): knee replacement and prosthesis with an overpriced digital X-ray and excluded massager device. Outcome: `PARTIAL`.
 
 To see the patient side, register a second account as a patient with `STAR-402-GOLD` / `PAT-1001`. The claims filed for that patient appear under **My Bills**, and the flagged lines can be disputed. To see a mismatch, file a claim against a policy with a patient ID that is not its holder: every line is denied.
 

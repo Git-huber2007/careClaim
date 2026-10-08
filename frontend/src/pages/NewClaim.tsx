@@ -212,7 +212,7 @@ export function NewClaim() {
   // Scenarios use the mock policies seeded by supabase/schema.sql.
   const loadScenario = (scenario: number) => {
     // A sample replaces the whole form, so a document scanned earlier no longer belongs to it.
-    if (scenario >= 1 && scenario <= 3) setScanned(null);
+    if (scenario >= 1) setScanned(null);
     if (scenario === 1) {
       setPolicyNumber('HDFC-118-SILVER');
       setPatientId('PAT-1002');
@@ -242,6 +242,50 @@ export function NewClaim() {
         { item_name: 'Anesthesia', cost: 18000, quantity: 1 }, // duplicate
         { item_name: 'Abdominal X-Ray', cost: 45000, quantity: 1 } // overcharge
       ]);
+    } else if (scenario === 4) {
+      setPolicyNumber('CARE-777-PLATINUM');
+      setPatientId('PAT-1003');
+      setDiagnosis('I25.10');
+      setItems([
+        { item_name: 'Coronary Angioplasty', cost: 180000, quantity: 1 },
+        { item_name: 'Drug-Eluting Stent', cost: 120000, quantity: 1 },
+        { item_name: 'Cath Lab Facility', cost: 45000, quantity: 1 },
+        { item_name: 'Cardiology Consultation', cost: 15000, quantity: 1 },
+        { item_name: 'Room Charges', cost: 20000, quantity: 1 }
+      ]);
+    } else if (scenario === 5) {
+      setPolicyNumber('SBI-205-MATERNITY');
+      setPatientId('PAT-1007');
+      setDiagnosis('O82');
+      setItems([
+        { item_name: 'LSCS Cesarean', cost: 65000, quantity: 1 },
+        { item_name: 'Epidural Anesthesia', cost: 15000, quantity: 1 },
+        { item_name: 'Obstetrician Consultation', cost: 12000, quantity: 1 },
+        { item_name: 'Routine Nursery', cost: 8000, quantity: 1 },
+        { item_name: 'Luxury Mother Hamper', cost: 18000, quantity: 1 } // excluded luxury item
+      ]);
+    } else if (scenario === 6) {
+      setPolicyNumber('MAX-990-ONCOLOGY');
+      setPatientId('PAT-1005');
+      setDiagnosis('C34.90');
+      setItems([
+        { item_name: 'Chemotherapy Infusion', cost: 75000, quantity: 1 },
+        { item_name: 'Port-a-Cath Insertion', cost: 35000, quantity: 1 },
+        { item_name: 'PET-CT Scan', cost: 35000, quantity: 1 },
+        { item_name: 'Oncology Consultation', cost: 10000, quantity: 1 },
+        { item_name: 'Alternative Herbal Therapy', cost: 25000, quantity: 1 } // excluded alternative therapy
+      ]);
+    } else if (scenario === 7) {
+      setPolicyNumber('TATA-330-ORTHO');
+      setPatientId('PAT-1006');
+      setDiagnosis('M17.11');
+      setItems([
+        { item_name: 'Total Knee Replacement', cost: 175000, quantity: 1 },
+        { item_name: 'Titanium Prosthesis Implant', cost: 95000, quantity: 1 },
+        { item_name: 'Spinal Anesthesia', cost: 25000, quantity: 1 },
+        { item_name: 'Digital X-Ray', cost: 28000, quantity: 1 }, // benchmark overcharge vs 8,000 reference
+        { item_name: 'Personal Massager Device', cost: 14000, quantity: 1 } // excluded comfort item
+      ]);
     }
   };
 
@@ -261,9 +305,13 @@ export function NewClaim() {
             className="bg-bone border border-rule rounded px-3 py-1.5 text-sm font-mono focus:outline-none"
           >
             <option value="0">Load Sample Scenario...</option>
-            <option value="1">1. Clean Approval</option>
-            <option value="2">2. Partial (Cosmetic)</option>
-            <option value="3">3. Fraud/Overcharge</option>
+            <option value="1">1. Clean Approval (Pneumonia)</option>
+            <option value="2">2. Partial - Cosmetic Exclusion</option>
+            <option value="3">3. Fraud - Duplicate & Overcharge</option>
+            <option value="4">4. Cardiac Angioplasty (0% Copay)</option>
+            <option value="5">5. Maternity C-Section (Luxury Exclusion)</option>
+            <option value="6">6. Oncology Chemotherapy (5% Copay)</option>
+            <option value="7">7. Orthopedic Knee Replacement (Overcharge)</option>
           </select>
         )}
       </header>
