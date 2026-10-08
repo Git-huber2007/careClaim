@@ -34,13 +34,20 @@ const configuredUrl = apiUrl(env('SUPABASE_URL'));
 // With an unusable SUPABASE_URL, fall back to the project the service key belongs to.
 const supabaseUrl = configuredUrl ?? (isPlaceholder(supabaseServiceRoleKey) ? null : projectUrlFromKey(supabaseServiceRoleKey));
 
+const rawModel = env('GEMINI_MODEL');
+// If unset or set to a retired model that Google rejects, default safely to gemini-3.5-flash
+const geminiModel =
+  !rawModel || ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-3.8-flash'].includes(rawModel)
+    ? 'gemini-3.5-flash'
+    : rawModel;
+
 export const config = {
   port: Number(process.env.PORT) || 5000,
   supabaseUrl,
   supabaseUrlFromKey: !configuredUrl && Boolean(supabaseUrl),
   supabaseServiceRoleKey,
   geminiApiKey: env('GEMINI_API_KEY'),
-  geminiModel: env('GEMINI_MODEL') || 'gemini-2.5-flash',
+  geminiModel,
   // Optional cap on model requests (adjudications and bill scans) per account per day; 0 = no cap.
   aiDailyLimitPerUser: Math.max(0, Math.floor(Number(env('AI_DAILY_LIMIT_PER_USER'))) || 0),
   // Required for hospital accounts so arbitrary users cannot claim hospital status

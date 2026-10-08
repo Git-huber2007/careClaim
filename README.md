@@ -156,7 +156,7 @@ To see the patient side, register a second account as a patient with `STAR-402-G
 - `POST /api/estimate` answers with the payout math for a planned bill against a policy; `GET /api/analytics` and `GET /api/reference-prices` are read-only views.
 - `POST /api/claims/:id/document` attaches the scanned bill (once; it cannot be replaced) and `GET` answers with a link to it that works for an hour. The files live in a private Supabase Storage bucket, `claim-documents`, which the backend creates on first use.
 - `GET /api/verify/:id` needs no sign-in. It confirms the status and amounts of an adjudicated, hospital-filed claim and nothing else.
-- The Gemini free tier allows a small number of requests per model per day (20 for `gemini-2.5-flash` at the time of writing). Each adjudication and each bill scan is one request. The model is fixed to `gemini-2.5-flash`; when its quota is spent, the caller is told the quota is used up and no other model is tried. `AI_DAILY_LIMIT_PER_USER` optionally caps requests per account per day.
+- The Gemini free tier allows a small number of requests per model per day (for `gemini-3.5-flash`). Each adjudication and each bill scan is one request. The model defaults to `gemini-3.5-flash`; when its quota is spent, the caller is told the quota is used up. `AI_DAILY_LIMIT_PER_USER` optionally caps requests per account per day.
 
 ---
 
