@@ -56,29 +56,29 @@ export function Dashboard() {
 
       const payload = isPneumonia
         ? {
-            patient_id: profile.patient_id || 'PAT-1002',
-            policy_id: policy.id,
-            diagnosis_code: 'J18.9',
-            raw_bill_data: [
-              { item_name: 'Room Charges (4 days)', cost: 28000 },
-              { item_name: 'Pulmonology Consultation', cost: 6500 },
-              { item_name: 'Chest X-Ray Digital', cost: 2800 },
-              { item_name: 'IV Antibiotics & Nebulization', cost: 32000 },
-            ],
-            total_billed: 69300,
-          }
+          patient_id: profile.patient_id || 'PAT-1002',
+          policy_id: policy.id,
+          diagnosis_code: 'J18.9',
+          raw_bill_data: [
+            { item_name: 'Room Charges (4 days)', cost: 28000 },
+            { item_name: 'Pulmonology Consultation', cost: 6500 },
+            { item_name: 'Chest X-Ray Digital', cost: 2800 },
+            { item_name: 'IV Antibiotics & Nebulization', cost: 32000 },
+          ],
+          total_billed: 69300,
+        }
         : {
-            patient_id: profile.patient_id || 'PAT-1001',
-            policy_id: policy.id,
-            diagnosis_code: 'K35.80',
-            raw_bill_data: [
-              { item_name: 'Laparoscopic Appendectomy', cost: 85000 },
-              { item_name: 'Anesthesia', cost: 18000 },
-              { item_name: 'Abdominal X-Ray', cost: 32000 },
-              { item_name: 'Cosmetic Scar Revision Surgery', cost: 32000 },
-            ],
-            total_billed: 167000,
-          };
+          patient_id: profile.patient_id || 'PAT-1001',
+          policy_id: policy.id,
+          diagnosis_code: 'K35.80',
+          raw_bill_data: [
+            { item_name: 'Laparoscopic Appendectomy', cost: 85000 },
+            { item_name: 'Anesthesia', cost: 18000 },
+            { item_name: 'Abdominal X-Ray', cost: 32000 },
+            { item_name: 'Cosmetic Scar Revision Surgery', cost: 32000 },
+          ],
+          total_billed: 167000,
+        };
 
       const { claim } = await fetchApi('/api/claims', {
         method: 'POST',
