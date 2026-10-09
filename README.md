@@ -28,6 +28,10 @@
 
 ## 🏗️ System Architecture
 
+![CareClaim AI system architecture: the React app signs in with Supabase Auth and calls the Express API, which queries Postgres with the service role, gets a flag for each bill line from Google Gemini, and recomputes the payout in code](docs/architecture.svg)
+
+Source: [`docs/architecture.html`](docs/architecture.html).
+
 ```
 /careClaim
   ├── backend/                          # Express API (Node 20+)

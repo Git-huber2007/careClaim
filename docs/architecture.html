@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CareClaim AI · System architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Pine & Bone: the same tokens as frontend/src/index.css */
+    :root {
+      --color-paper:   #FAF8F2;
+      --color-ink:     #121B18;
+      --color-muted:   #4A5651;
+      --color-accent:  #0F4C43;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', Georgia, serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1200px; width: 100%; }
+    .diagram-container { width: 100%; overflow-x: auto; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 960px; display: block; }
+    @media print {
+      .diagram-container { overflow-x: visible; }
+      svg { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Architecture · CareClaim AI</p>
+    <h1>The model flags the bill. Code decides the payout.</h1>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 960 552" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="architecture-title architecture-desc">
+        <title id="architecture-title">CareClaim AI system architecture</title>
+        <desc id="architecture-desc">The React app signs in with Supabase Auth and calls the Express API, where auth middleware verifies the token, controllers query Postgres with the service role, the Gemini service gets a flag for each bill line from Google Gemini, and the adjudication math recomputes the payout in code before the verdict is streamed back.</desc>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4A5651"/></marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#0F4C43"/></marker>
+        </defs>
+
+        <rect width="100%" height="100%" fill="#FAF8F2"/>
+
+        <!-- Zones -->
+        <rect x="64" y="168" width="872" height="152" rx="8" fill="rgba(18,27,24,0.02)" stroke="rgba(18,27,24,0.10)" stroke-width="0.8"/>
+        <rect x="788" y="172" width="132" height="12" rx="2" fill="#FAF8F2"/>
+        <text x="854" y="181" fill="#66716B" font-size="7" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.14em">EXPRESS API · RENDER</text>
+
+        <rect x="64" y="368" width="424" height="120" rx="8" fill="rgba(18,27,24,0.02)" stroke="rgba(18,27,24,0.10)" stroke-width="0.8"/>
+        <rect x="412" y="372" width="60" height="12" rx="2" fill="#FAF8F2"/>
+        <text x="442" y="381" fill="#66716B" font-size="7" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.14em">SUPABASE</text>
+
+        <!-- Arrows -->
+        <path d="M 88,88 H 32 Q 24,88 24,96 V 424 Q 24,432 32,432 H 88" fill="none" stroke="#4A5651" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="140" y1="120" x2="140" y2="232" stroke="#4A5651" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <path d="M 364,232 V 152 Q 364,144 356,144 H 196 Q 188,144 188,136 V 120" fill="none" stroke="#4A5651" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+        <line x1="240" y1="264" x2="312" y2="264" stroke="#4A5651" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="464" y1="264" x2="536" y2="264" stroke="#4A5651" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="688" y1="264" x2="760" y2="264" stroke="#0F4C43" stroke-width="1.6" marker-end="url(#arrow-accent)"/>
+        <path d="M 836,232 V 216 Q 836,208 828,208 H 420 Q 412,208 412,216 V 232" fill="none" stroke="#4A5651" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+        <line x1="164" y1="296" x2="164" y2="400" stroke="#4A5651" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="388" y1="296" x2="388" y2="400" stroke="#4A5651" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <line x1="612" y1="296" x2="612" y2="400" stroke="#4A5651" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- Arrow labels -->
+        <rect x="32" y="68" width="48" height="12" rx="2" fill="#FAF8F2"/>
+        <text x="56" y="77" fill="#66716B" font-size="8" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.06em">SIGN IN</text>
+        <rect x="68" y="138" width="64" height="12" rx="2" fill="#FAF8F2"/>
+        <text x="100" y="147" fill="#66716B" font-size="8" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.06em">REST + JWT</text>
+        <rect x="244" y="124" width="64" height="12" rx="2" fill="#FAF8F2"/>
+        <text x="276" y="133" fill="#66716B" font-size="8" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.06em">SSE STREAM</text>
+        <rect x="482" y="244" width="36" height="12" rx="2" fill="#FAF8F2"/>
+        <text x="500" y="253" fill="#66716B" font-size="8" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.06em">CLAIM</text>
+        <rect x="706" y="244" width="36" height="12" rx="2" fill="#FAF8F2"/>
+        <text x="724" y="253" fill="#0F4C43" font-size="8" font-weight="600" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.06em">FLAGS</text>
+        <rect x="602" y="188" width="44" height="12" rx="2" fill="#FAF8F2"/>
+        <text x="624" y="197" fill="#66716B" font-size="8" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.06em">PAYOUT</text>
+        <rect x="174" y="338" width="64" height="12" rx="2" fill="#FAF8F2"/>
+        <text x="206" y="347" fill="#66716B" font-size="8" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.06em">VERIFY JWT</text>
+        <rect x="398" y="338" width="48" height="12" rx="2" fill="#FAF8F2"/>
+        <text x="422" y="347" fill="#66716B" font-size="8" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.06em">QUERIES</text>
+        <rect x="622" y="338" width="68" height="12" rx="2" fill="#FAF8F2"/>
+        <text x="656" y="347" fill="#66716B" font-size="8" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.06em">JSON SCHEMA</text>
+
+        <!-- React app -->
+        <rect x="88" y="56" width="152" height="64" rx="6" fill="#FAF8F2"/>
+        <rect x="88" y="56" width="152" height="64" rx="6" fill="#ffffff" stroke="#121B18" stroke-width="1"/>
+        <rect x="96" y="62" width="28" height="12" rx="2" fill="none" stroke="rgba(18,27,24,0.40)" stroke-width="0.8"/>
+        <text x="110" y="71" fill="#4A5651" font-size="7" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">WEB</text>
+        <text x="164" y="90" fill="#121B18" font-size="12" font-weight="600" font-family="'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">React app</text>
+        <text x="164" y="106" fill="#4A5651" font-size="9" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle">hospital · patient</text>
+
+        <!-- Auth middleware -->
+        <rect x="88" y="232" width="152" height="64" rx="6" fill="#FAF8F2"/>
+        <rect x="88" y="232" width="152" height="64" rx="6" fill="#ffffff" stroke="#121B18" stroke-width="1"/>
+        <rect x="96" y="238" width="28" height="12" rx="2" fill="none" stroke="rgba(18,27,24,0.40)" stroke-width="0.8"/>
+        <text x="110" y="247" fill="#4A5651" font-size="7" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+        <text x="164" y="266" fill="#121B18" font-size="12" font-weight="600" font-family="'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Auth middleware</text>
+        <text x="164" y="282" fill="#4A5651" font-size="9" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle">token → profile role</text>
+
+        <!-- Controllers -->
+        <rect x="312" y="232" width="152" height="64" rx="6" fill="#FAF8F2"/>
+        <rect x="312" y="232" width="152" height="64" rx="6" fill="#ffffff" stroke="#121B18" stroke-width="1"/>
+        <rect x="320" y="238" width="28" height="12" rx="2" fill="none" stroke="rgba(18,27,24,0.40)" stroke-width="0.8"/>
+        <text x="334" y="247" fill="#4A5651" font-size="7" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+        <text x="388" y="266" fill="#121B18" font-size="12" font-weight="600" font-family="'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Controllers</text>
+        <text x="388" y="282" fill="#4A5651" font-size="9" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle">claims · disputes</text>
+
+        <!-- Gemini service -->
+        <rect x="536" y="232" width="152" height="64" rx="6" fill="#FAF8F2"/>
+        <rect x="536" y="232" width="152" height="64" rx="6" fill="#ffffff" stroke="#121B18" stroke-width="1"/>
+        <rect x="544" y="238" width="28" height="12" rx="2" fill="none" stroke="rgba(18,27,24,0.40)" stroke-width="0.8"/>
+        <text x="558" y="247" fill="#4A5651" font-size="7" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+        <text x="612" y="266" fill="#121B18" font-size="12" font-weight="600" font-family="'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Gemini service</text>
+        <text x="612" y="282" fill="#4A5651" font-size="9" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle">adjudicate · scan bill</text>
+
+        <!-- Adjudication math (focal) -->
+        <rect x="760" y="232" width="152" height="64" rx="6" fill="#FAF8F2"/>
+        <rect x="760" y="232" width="152" height="64" rx="6" fill="rgba(15,76,67,0.10)" stroke="#0F4C43" stroke-width="1.6"/>
+        <rect x="768" y="238" width="32" height="12" rx="2" fill="none" stroke="rgba(15,76,67,0.50)" stroke-width="0.8"/>
+        <text x="784" y="247" fill="#0F4C43" font-size="7" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">CORE</text>
+        <text x="836" y="266" fill="#0F4C43" font-size="12" font-weight="600" font-family="'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Adjudication math</text>
+        <text x="836" y="282" fill="#4A5651" font-size="9" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle">payout · enforced rules</text>
+
+        <!-- Supabase Auth -->
+        <rect x="88" y="400" width="152" height="64" rx="6" fill="#FAF8F2"/>
+        <rect x="88" y="400" width="152" height="64" rx="6" fill="rgba(18,27,24,0.03)" stroke="rgba(18,27,24,0.30)" stroke-width="1"/>
+        <rect x="96" y="406" width="32" height="12" rx="2" fill="none" stroke="rgba(18,27,24,0.30)" stroke-width="0.8"/>
+        <text x="112" y="415" fill="#4A5651" font-size="7" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">AUTH</text>
+        <text x="164" y="434" fill="#121B18" font-size="12" font-weight="600" font-family="'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Supabase Auth</text>
+        <text x="164" y="450" fill="#4A5651" font-size="9" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle">issues the JWT</text>
+
+        <!-- Postgres + Storage -->
+        <rect x="312" y="400" width="152" height="64" rx="6" fill="#FAF8F2"/>
+        <rect x="312" y="400" width="152" height="64" rx="6" fill="rgba(18,27,24,0.03)" stroke="rgba(18,27,24,0.30)" stroke-width="1"/>
+        <rect x="320" y="406" width="28" height="12" rx="2" fill="none" stroke="rgba(18,27,24,0.30)" stroke-width="0.8"/>
+        <text x="334" y="415" fill="#4A5651" font-size="7" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">DB</text>
+        <text x="388" y="434" fill="#121B18" font-size="12" font-weight="600" font-family="'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Postgres + Storage</text>
+        <text x="388" y="450" fill="#4A5651" font-size="9" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle">RLS · service role only</text>
+
+        <!-- Google Gemini -->
+        <rect x="536" y="400" width="152" height="64" rx="6" fill="#FAF8F2"/>
+        <rect x="536" y="400" width="152" height="64" rx="6" fill="rgba(18,27,24,0.03)" stroke="rgba(18,27,24,0.30)" stroke-width="1"/>
+        <rect x="544" y="406" width="28" height="12" rx="2" fill="none" stroke="rgba(18,27,24,0.30)" stroke-width="0.8"/>
+        <text x="558" y="415" fill="#4A5651" font-size="7" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">LLM</text>
+        <text x="612" y="434" fill="#121B18" font-size="12" font-weight="600" font-family="'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Google Gemini</text>
+        <text x="612" y="450" fill="#4A5651" font-size="9" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" text-anchor="middle">@google/genai</text>
+
+        <!-- Callout -->
+        <text x="912" y="424" fill="#121B18" font-size="14" font-style="italic" font-family="'Instrument Serif', Georgia, serif" text-anchor="end">the model only flags lines;</text>
+        <text x="912" y="442" fill="#121B18" font-size="14" font-style="italic" font-family="'Instrument Serif', Georgia, serif" text-anchor="end">code recomputes the payout</text>
+        <path d="M 836 406 Q 852 352 836 304" fill="none" stroke="rgba(18,27,24,0.40)" stroke-width="1" stroke-dasharray="4,3"/>
+        <circle cx="836" cy="304" r="2" fill="#121B18"/>
+
+        <!-- Legend -->
+        <line x1="32" y1="512" x2="928" y2="512" stroke="rgba(18,27,24,0.10)" stroke-width="0.8"/>
+        <text x="32" y="533" fill="#4A5651" font-size="8" font-family="'Geist Mono', ui-monospace, 'SF Mono', Consolas, Menlo, monospace" letter-spacing="0.14em">LEGEND</text>
+        <rect x="104" y="525" width="16" height="10" rx="2" fill="#ffffff" stroke="#121B18" stroke-width="1"/>
+        <text x="128" y="533" fill="#4A5651" font-size="10" font-family="'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif">App code</text>
+        <rect x="208" y="525" width="16" height="10" rx="2" fill="rgba(15,76,67,0.10)" stroke="#0F4C43" stroke-width="1.6"/>
+        <text x="232" y="533" fill="#4A5651" font-size="10" font-family="'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif">Deterministic verifier</text>
+        <rect x="368" y="525" width="16" height="10" rx="2" fill="rgba(18,27,24,0.03)" stroke="rgba(18,27,24,0.30)" stroke-width="1"/>
+        <text x="392" y="533" fill="#4A5651" font-size="10" font-family="'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif">Managed service</text>
+        <line x1="504" y1="530" x2="528" y2="530" stroke="#4A5651" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <text x="536" y="533" fill="#4A5651" font-size="10" font-family="'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif">Call</text>
+        <line x1="592" y1="530" x2="616" y2="530" stroke="#0F4C43" stroke-width="1.6" marker-end="url(#arrow-accent)"/>
+        <text x="624" y="533" fill="#4A5651" font-size="10" font-family="'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif">Model flags</text>
+        <line x1="712" y1="530" x2="736" y2="530" stroke="#4A5651" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+        <text x="744" y="533" fill="#4A5651" font-size="10" font-family="'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif">Return / stream</text>
+      </svg>
+    </div>
+  </div>
+</body>
+</html>
