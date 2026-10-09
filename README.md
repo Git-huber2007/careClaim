@@ -174,3 +174,7 @@ To see the patient side, register a second account as a patient with `STAR-402-G
 - **Shared Hospital Queues**: Hospital staff accounts belong to an organization (`hospital_org`). Colleagues within the same network or hospital share the intake claims queue and dispute review. Hospital account registration is guarded by `HOSPITAL_ACCESS_CODE`.
 - **Database Concurrency Lock (`PROCESSING` Status)**: Adjudication double-run protection uses an atomic database status transition from `PENDING` to `PROCESSING`, surviving server restarts and multi-instance horizontal scaling.
 - **Flags Are Not Accusations**: A flag marks a charge as worth reviewing. The "overpriced" flag compares against the mock values in `reference_prices`, which are not an official rate card.
+
+---
+
+<sub>Built with Google Gemini & TypeScript.</sub>
